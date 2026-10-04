@@ -2,206 +2,260 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="LevelHead: deskew before you classify. Training-free page orientation for any model.">
 <title>LevelHead</title>
-<meta name="description" content="Deskew Before You Classify: training-free page orientation for any model.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,650&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-:root{--bg:#ffffff;--panel:#f5f8fc;--line:#dbe4ef;--ink:#1e2a38;--muted:#5b6b7f;--ours:#1f5fad;--ours-soft:#dce7f5;--base:#b8c2cc;--mid:#5b8bc9;--good:#1f7a4d;--bad:#b23b3b}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0f141b;--panel:#161d27;--line:#273243;--ink:#e6edf5;--muted:#93a3b8;--ours:#6fa3e8;--ours-soft:#1d2c42;--base:#5f6b79;--mid:#4f7fbf}}
-:root[data-theme="dark"]{--bg:#0f141b;--panel:#161d27;--line:#273243;--ink:#e6edf5;--muted:#93a3b8;--ours:#6fa3e8;--ours-soft:#1d2c42;--base:#5f6b79;--mid:#4f7fbf}
+:root{
+  --bg:#f6f8fb; --paper:#ffffff; --ink:#1e2a38; --muted:#5b6b7f; --rule:#dbe3ee;
+  --accent:#1f5fad; --accent-soft:#dce7f5; --mid:#5b8bc9; --pale:#9db9de; --grey:#aab5c2;
+  --good:#1f7a4d; --bad:#b23b3b; --pagefill:#ffffff; --pageink:#33414f; --on-accent:#ffffff;
+  --display:"Literata",Georgia,"Times New Roman",serif; --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  color-scheme:dark; --bg:#0e141c; --paper:#151d28; --ink:#e4ebf4; --muted:#93a3b8; --rule:#263243;
+  --accent:#78aaf0; --accent-soft:#1c2b40; --mid:#5e8fd0; --pale:#3f5f8c; --grey:#5c6979; --good:#5cc08a; --bad:#e07a7a; --pagefill:#e9eef5; --pageink:#2b3846; --on-accent:#0e141c;}}
+:root[data-theme="dark"]{
+  color-scheme:dark; --bg:#0e141c; --paper:#151d28; --ink:#e4ebf4; --muted:#93a3b8; --rule:#263243;
+  --accent:#78aaf0; --accent-soft:#1c2b40; --mid:#5e8fd0; --pale:#3f5f8c; --grey:#5c6979; --good:#5cc08a; --bad:#e07a7a; --pagefill:#e9eef5; --pageink:#2b3846; --on-accent:#0e141c;}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
-header{padding:64px 0 28px;text-align:center}
-h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:0 0 12px;letter-spacing:-.02em}
-h1 span{color:var(--ours)}
-.sub{color:var(--muted);font-size:18px;max-width:720px;margin:0 auto 22px}
-.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:500;font-size:14px;background:var(--panel)}
-.btn.primary{background:var(--ours);border-color:var(--ours);color:#fff}
-section{padding:36px 0;border-top:1px solid var(--line)}
-h2{font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
-.lead{color:var(--muted);margin:0 0 20px}
-figure{margin:0}
-figure img{width:100%;border-radius:12px;border:1px solid var(--line);background:#fff}
-figcaption{color:var(--muted);font-size:14px;margin-top:8px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0 8px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
-.stat b{display:block;font-size:28px;color:var(--ours);letter-spacing:-.02em}
-.stat span{color:var(--muted);font-size:14px}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:18px}
-.step{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--panel)}
-.step i{font-style:normal;display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--ours);color:#fff;font-weight:600;font-size:14px;margin-right:8px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media (max-width:760px){.grid2{grid-template-columns:1fr}}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
-.chip{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
-.chip[aria-pressed="true"]{background:var(--ours);border-color:var(--ours);color:#fff}
-.chart{position:relative;height:300px}
-.tbl{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
-th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);margin:0}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:0 64px}
+h1,h2,h3{font-family:var(--display);font-weight:650;text-wrap:balance;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(34px,5.4vw,58px);line-height:1.04}
+h2{font-size:clamp(24px,3vw,32px);line-height:1.15}
+p{margin:0}
+.eyebrow{font:500 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+.muted{color:var(--muted)}
+a{color:var(--accent)}
+/* hero */
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;padding-block:56px 40px}
+@media (max-width:860px){.hero{grid-template-columns:1fr;gap:28px;padding-block:36px 24px}}
+.thesis{display:grid;gap:18px}
+.thesis p.lede{font-size:18px;max-width:34em}
+.links{display:flex;flex-wrap:wrap;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;border:1px solid var(--rule);color:var(--ink);text-decoration:none;font:500 14px/1 var(--sans);background:var(--paper)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn:focus-visible,.chip:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bench{background:var(--paper);border:1px solid var(--rule);border-radius:14px;padding:18px;display:grid;gap:14px}
+.stage{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.pane{display:grid;gap:6px;justify-items:center}
+.pane canvas{width:100%;max-width:220px;aspect-ratio:1;background:var(--accent-soft);border-radius:10px}
+.pane span{font:500 12px/1.2 var(--mono);color:var(--muted);text-align:center}
+.eq{font:500 15px/1.4 var(--mono);text-align:center}
+.eq b{color:var(--accent);font-weight:500}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.meter{display:grid;gap:6px}
+.bar{display:grid;grid-template-columns:118px 1fr 48px;align-items:center;gap:10px;font-size:13px}
+.bar .track{height:10px;background:var(--rule);border-radius:99px;overflow:hidden}
+.bar .fill{height:100%;border-radius:99px;transition:width .25s ease}
+.bar .v{font:500 13px var(--mono);text-align:right;font-variant-numeric:tabular-nums}
+select{font:inherit;font-size:13px;padding:5px 8px;border-radius:6px;border:1px solid var(--rule);background:var(--paper);color:var(--ink)}
+/* sections */
+section{padding-block:44px;border-top:1px solid var(--rule);display:grid;gap:22px}
+.head{display:grid;gap:8px;max-width:46em}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:760px){.steps{grid-template-columns:1fr}}
+.step{display:grid;gap:6px;padding-top:12px;border-top:2px solid var(--accent)}
+.step b{font-family:var(--display);font-size:19px;font-weight:650}
+figure{margin:0;display:grid;gap:8px}
+figure img{width:100%;border-radius:10px;border:1px solid var(--rule);background:#fff}
+figcaption{font-size:14px;color:var(--muted);max-width:60em}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:820px){.grid2{grid-template-columns:1fr}}
+.panel{background:var(--paper);border:1px solid var(--rule);border-radius:14px;padding:18px;display:grid;gap:12px;min-width:0}
+.panel h3{font-size:19px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:99px;padding:5px 11px;font:500 12.5px var(--sans);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.chart{position:relative;height:290px;min-width:0}
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:12px;background:var(--paper)}
+table{border-collapse:collapse;width:100%;min-width:620px;font-size:14px}
+th,td{padding:9px 12px;text-align:right;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums}
 th:first-child,td:first-child{text-align:left}
-th{color:var(--muted);font-weight:600;font-size:13px}
-td.ours{color:var(--ours);font-weight:600}
-.gain{color:var(--good);font-size:12px;margin-left:4px}
-pre{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;overflow-x:auto;font:13px/1.55 "JetBrains Mono",monospace}
-footer{color:var(--muted);font-size:13px;text-align:center;padding:36px 0 56px;border-top:1px solid var(--line)}
-.toggle{position:fixed;top:14px;right:14px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;width:36px;height:36px;cursor:pointer}
+th{font:500 12px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+tr.group td{font:500 12px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--bg)}
+tr:last-child td{border-bottom:0}
+td.ours{font-weight:600;color:var(--accent)}
+.delta{font:500 12px var(--mono);color:var(--good);margin-left:6px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media (max-width:760px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{display:grid;gap:2px}
+.stat b{font:650 30px/1.1 var(--display);color:var(--accent)}
+.stat span{font-size:13.5px;color:var(--muted)}
+pre{margin:0;background:var(--paper);border:1px solid var(--rule);border-radius:12px;padding:16px;overflow-x:auto;font:13px/1.6 var(--mono)}
+footer{border-top:1px solid var(--rule);padding-top:22px;color:var(--muted);font-size:13px}
+.theme{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:36px;height:36px;border-radius:50%;border:1px solid var(--rule);background:var(--paper);color:var(--ink);cursor:pointer;font-size:16px}
+@media (prefers-reduced-motion:reduce){.bar .fill{transition:none}}
 </style>
 </head>
 <body>
-<button class="toggle" id="theme" aria-label="Toggle colour theme">◐</button>
-<div class="wrap">
-<header>
-  <h1>Deskew <span>Before</span> You Classify</h1>
-  <p class="sub">LevelHead: training-free page orientation for any model. Level the page first, then let any classifier or VLM vote over the four quarter turns of the level page.</p>
-  <div class="btns">
-    <a class="btn primary" href="https://github.com/beingamanforever/LevelHead">Code</a>
-    <a class="btn" href="#results">Results</a>
-    <a class="btn" href="#quickstart">Quickstart</a>
-  </div>
-</header>
 
-<figure><img src="img/teaser.png" alt="Classify-first versus LevelHead on a real page"><figcaption>A page turned 152°. Classified first, PP-LCNet picks a turn 180° off and OCR reads gibberish; levelled first and voted, the page comes out upright. Right: accuracy at 30–45° of tilt for nine backbones.</figcaption></figure>
+<button class="theme" id="themeBtn" aria-label="Switch light or dark theme">◐</button>
+<div class="wrap">
+
+<div class="hero">
+  <div class="thesis">
+    <span class="eyebrow">Page orientation · training-free</span>
+    <h1>Deskew before you classify</h1>
+    <p class="lede">Document pipelines pick a page's quarter turn first and remove its tilt second. Orientation models are trained on level pages, so a tilted page fools them before the deskewer ever runs. <b>LevelHead</b> swaps the order: level the page, then let any frozen model vote over the four quarter turns of the level page.</p>
+    <div class="links">
+      <a class="btn primary" href="https://github.com/beingamanforever/LevelHead">Code on GitHub</a>
+      <a class="btn" href="#results">Results</a>
+      <a class="btn" href="#use">Use it</a>
+    </div>
+  </div>
+
+  <div class="bench" aria-label="Interactive: turn a page">
+    <div class="row"><span class="eyebrow">Turn a page</span>
+      <label class="muted" style="font-size:13px">Backbone <select id="bb"></select></label></div>
+    <div class="stage">
+      <div class="pane"><canvas id="cIn" width="440" height="440"></canvas><span>page as given</span></div>
+      <div class="pane"><canvas id="cLv" width="440" height="440"></canvas><span>after Step 1: level, a quarter turn off</span></div>
+    </div>
+    <input type="range" id="theta" min="0" max="359" value="152" aria-label="Angle the page is turned by, in degrees">
+    <div class="eq" id="eq"></div>
+    <div class="meter">
+      <div class="bar"><span>Classify-first</span><div class="track"><div class="fill" id="fCF" style="background:var(--grey)"></div></div><span class="v" id="vCF"></span></div>
+      <div class="bar"><span>LevelHead</span><div class="track"><div class="fill" id="fLH" style="background:var(--accent)"></div></div><span class="v" id="vLH"></span></div>
+      <p class="muted" style="font-size:12.5px" id="note"></p>
+    </div>
+  </div>
+</div>
 
 <div class="stats">
-  <div class="stat"><b>31 → 87%</b><span>VLMs on pages at any angle</span></div>
-  <div class="stat"><b>35 / 35</b><span>VLM benchmark cells improve</span></div>
-  <div class="stat"><b>69 → 90%</b><span>classifiers on real phone photos at any angle</span></div>
+  <div class="stat"><b>31 → 87%</b><span>Qwen VLMs on pages at any angle</span></div>
+  <div class="stat"><b>34 → 70%</b><span>GPT-4o-mini, seven benchmarks</span></div>
+  <div class="stat"><b>69 → 90%</b><span>classifiers on phone photos at any angle</span></div>
   <div class="stat"><b>0</b><span>parameters trained</span></div>
 </div>
 
 <section>
-  <h2>How it works</h2>
-  <p class="lead">Any angle splits as θ = 90°·k + s. Rows of text reveal the tilt s and look the same after a quarter turn; the shapes of letters reveal k.</p>
-  <figure><img src="img/method.png" alt="LevelHead pipeline"></figure>
+  <div class="head"><span class="eyebrow">Method</span><h2>One split, three steps</h2>
+  <p class="muted">Any angle splits as θ = 90°·k + s. Rows of text reveal the tilt s and look the same after a quarter turn; the shapes of letters reveal k. So each part goes to the tool that can read it.</p></div>
   <div class="steps">
-    <div class="step"><i>1</i><b>Level the page</b><br><span style="color:var(--muted)">A spectral deskewer reads the tilt modulo 90°. A Hann taper lets it read photographs too.</span></div>
-    <div class="step"><i>2</i><b>Ask four times</b><br><span style="color:var(--muted)">The frozen backbone sees the level page in its four quarter turns.</span></div>
-    <div class="step"><i>3</i><b>Roll back, combine</b><br><span style="color:var(--muted)">Each answer is read at its own offset; a geometric mean cancels class bias.</span></div>
+    <div class="step"><span class="eyebrow">Step 1</span><b>Level the page</b><p class="muted">A spectral deskewer reads s modulo 90°. A Hann taper before the FFT lets it read photographs, where the released code returns 0°.</p></div>
+    <div class="step"><span class="eyebrow">Step 2</span><b>Ask four times</b><p class="muted">The frozen backbone, CNN or VLM, sees the level page in its four quarter turns.</p></div>
+    <div class="step"><span class="eyebrow">Step 3</span><b>Roll back, combine</b><p class="muted">Each answer is read at its own offset and the four are multiplied. A fixed preference for one answer cancels out.</p></div>
   </div>
+  <figure><img src="img/method.jpg" alt="LevelHead on a real page: level, ask four times, roll back and combine" loading="lazy"><figcaption>An OmniDocBench page turned 121°. Qwen3-VL-32B's first view is confidently wrong; after the roll, the product puts 0.996 on the right turn.</figcaption></figure>
 </section>
 
 <section id="results">
-  <h2>Accuracy against tilt</h2>
-  <p class="lead">Same backbone, same deskewer, same four-view vote; only the order of the two steps differs. Pick a backbone.</p>
-  <div class="card">
+  <div class="head"><span class="eyebrow">Results</span><h2>Accuracy against tilt</h2>
+  <p class="muted">Same backbone, same deskewer, same four-view vote; only the order of the two steps differs. Pick a backbone.</p></div>
+  <div class="panel">
     <div class="chips" id="chips" role="group" aria-label="Backbone"></div>
-    <div class="chart"><canvas id="tilt"></canvas></div>
+    <div class="chart"><canvas id="tiltChart" aria-label="Accuracy by tilt"></canvas></div>
   </div>
-</section>
-
-<section>
   <div class="grid2">
-    <div class="card">
-      <h2 style="font-size:19px">Order and vote are complementary</h2>
-      <p class="lead" style="font-size:14px">Arbitrary-angle sets, averaged per backbone.</p>
-      <div class="chart"><canvas id="order"></canvas></div>
-    </div>
-    <div class="card">
-      <h2 style="font-size:19px">A deskewer that reads photographs</h2>
-      <p class="lead" style="font-size:14px">Share of images left more than 15° off (lower is better).</p>
-      <div class="chart"><canvas id="deskew"></canvas></div>
-    </div>
+    <div class="panel"><h3>Order and vote need each other</h3><p class="muted" style="font-size:14px">Pages at any angle, averaged per backbone.</p><div class="chart"><canvas id="orderChart"></canvas></div></div>
+    <div class="panel"><h3>A deskewer that reads photographs</h3><p class="muted" style="font-size:14px">Images left more than 15° off. Lower is better.</p><div class="chart"><canvas id="deskewChart"></canvas></div></div>
   </div>
 </section>
 
 <section>
-  <h2>Every backbone, seven benchmarks</h2>
-  <p class="lead">Average accuracy (%) within 15° over ODB-4, ORB SROIE, SynthDoG, Indic-4, ODB-any, En-12 and Indic-8.</p>
-  <div class="tbl"><table>
-    <thead><tr><th>Backbone</th><th>Classify-first</th><th>LevelHead</th><th>ODB-any</th></tr></thead>
-    <tbody id="main"></tbody>
-  </table></div>
+  <div class="head"><span class="eyebrow">Seven public benchmarks</span><h2>Every backbone improves</h2>
+  <p class="muted">Accuracy (%) within 15°, averaged over ODB-4, ORB SROIE, SynthDoG and Indic-4 (quarter turns) and ODB-any, En-12 and Indic-8 (any angle).</p></div>
+  <div class="tbl"><table><thead><tr><th>Backbone</th><th>Classify-first</th><th>LevelHead</th><th>ODB-any, CF → LH</th></tr></thead><tbody id="mainTbl"></tbody></table></div>
 </section>
 
 <section>
-  <h2>Photographs and scans at known angles</h2>
-  <p class="lead">Classify-first / + vote / LevelHead. At quarter turns the vote alone suffices; at any angle only levelling closes the gap.</p>
-  <div class="tbl"><table>
-    <thead><tr><th>Backbone</th><th>Real5-Rot4</th><th>Real5-RotAny</th><th>DISE-any</th></tr></thead>
-    <tbody>
-      <tr><td>docTR</td><td>85.8 / 88.8 / <b>88.5</b></td><td>72.6 / 75.7 / <b>86.1</b></td><td>68.7 / 70.9 / <b>88.2</b></td></tr>
-      <tr><td>PP-LCNet</td><td>98.3 / 98.4 / <b>98.3</b></td><td>69.9 / 75.0 / <b>97.0</b></td><td>55.1 / 58.4 / <b>95.7</b></td></tr>
-      <tr><td>Swin-T</td><td>82.4 / 89.2 / <b>89.0</b></td><td>66.8 / 77.3 / <b>89.1</b></td><td>63.4 / 77.8 / <b>92.7</b></td></tr>
-      <tr><td>BEiT-B</td><td>86.1 / 90.2 / <b>90.0</b></td><td>68.0 / 76.5 / <b>87.0</b></td><td>72.9 / 81.8 / <b>88.8</b></td></tr>
-    </tbody>
-  </table></div>
-</section>
-
-<section>
-  <h2>What the order changes</h2>
-  <p class="lead">One page per difficulty level, drawn where the two orders disagree; both use Qwen3-VL-32B and the same vote.</p>
-  <figure><img src="img/levels.png" alt="Examples by difficulty level"></figure>
-  <div class="grid2" style="margin-top:16px">
-    <figure><img src="img/angle.png" alt="Accuracy and OCR against angle"><figcaption>Classify-first breaks at every diagonal; LevelHead is flat and reads like the true correction.</figcaption></figure>
-    <figure><img src="img/hann.png" alt="Hann taper"><figcaption>Untapered, image borders outvote the text; a Hann taper restores the text-line streak.</figcaption></figure>
+  <div class="head"><span class="eyebrow">Photographs and scans</span><h2>At any angle, only levelling closes the gap</h2>
+  <p class="muted">Classify-first / + vote / LevelHead. At quarter turns the vote alone is enough.</p></div>
+  <div class="tbl"><table><thead><tr><th>Backbone</th><th>Phones, quarter turns</th><th>Phones, any angle</th><th>DISE scans, any angle</th></tr></thead><tbody>
+    <tr><td>docTR</td><td>85.8 / 88.8 / <b>88.5</b></td><td>72.6 / 75.7 / <b>86.1</b></td><td>68.7 / 70.9 / <b>88.2</b></td></tr>
+    <tr><td>PP-LCNet</td><td>98.3 / 98.4 / <b>98.3</b></td><td>69.9 / 75.0 / <b>97.0</b></td><td>55.1 / 58.4 / <b>95.7</b></td></tr>
+    <tr><td>Swin-T</td><td>82.4 / 89.2 / <b>89.0</b></td><td>66.8 / 77.3 / <b>89.1</b></td><td>63.4 / 77.8 / <b>92.7</b></td></tr>
+    <tr><td>BEiT-B</td><td>86.1 / 90.2 / <b>90.0</b></td><td>68.0 / 76.5 / <b>87.0</b></td><td>72.9 / 81.8 / <b>88.8</b></td></tr>
+  </tbody></table></div>
+  <figure><img src="img/levels.jpg" alt="Examples by difficulty level" loading="lazy"><figcaption>One page per difficulty level, drawn where the two orders disagree. Both use Qwen3-VL-32B and the same vote.</figcaption></figure>
+  <div class="grid2">
+    <figure><img src="img/hann.jpg" alt="Hann taper restores the text-line streak" loading="lazy"><figcaption>Untapered, the image border puts a bright cross on the spectrum and the deskewer answers 0°. A Hann taper restores the text lines.</figcaption></figure>
+    <figure><img src="img/gallery_photos.jpg" alt="Screen photographs corrected" loading="lazy"><figcaption>Screen photographs turned by a known angle. Classify-first leaves them a quarter or half turn off.</figcaption></figure>
   </div>
 </section>
 
-<section id="quickstart">
-  <h2>Quickstart</h2>
+<section id="use">
+  <div class="head"><span class="eyebrow">Use it</span><h2>Wrap any orientation model</h2>
+  <p class="muted">A backbone is any function from images to four probabilities. CNNs, ViTs, OCR page classifiers and VLMs with letter probabilities all work.</p></div>
 <pre>pip install "levelhead[hf] @ git+https://github.com/beingamanforever/LevelHead"
 
 from PIL import Image
 from levelhead import LevelHead
 from levelhead.backbones import HFOrientationClassifier
 
-lh = LevelHead(HFOrientationClassifier())
+lh = LevelHead(HFOrientationClassifier())        # Swin-T orientation classifier
 pred = lh.predict(Image.open("scan.jpg"))
-print(pred.angle, pred.posterior)
+print(pred.angle, pred.tilt, pred.posterior)      # clockwise angle, tilt, P(0/90/180/270)
 lh.correct(Image.open("scan.jpg")).save("upright.jpg")</pre>
 </section>
+
+<footer>LevelHead · paper under review · code under Apache 2.0 · figures from the paper</footer>
 </div>
-<footer>LevelHead · paper under review · Apache 2.0</footer>
 
 <script>
-const TILT = {"docTR":[[0,88.9,90.1],[5,90.0,90.5],[15,91.5,94.9],[30,61.5,90.0]],"PP-LCNet":[[0,98.8,97.5],[5,96.4,98.7],[15,66.9,98.1],[30,37.1,97.0]],"Swin-T":[[0,92.6,92.0],[5,91.8,94.1],[15,87.2,94.0],[30,62.7,92.1]],"BEiT-B":[[0,83.3,75.9],[5,81.7,79.4],[15,85.9,85.1],[30,63.8,80.0]],"Qwen3-VL-8B":[[0,81.5,84.6],[5,82.8,84.6],[15,75.0,83.1],[30,46.4,84.2]],"Qwen3-VL-30B-A3B":[[0,77.2,76.5],[5,64.8,77.9],[15,51.8,76.1],[30,38.1,74.9]],"Qwen3-VL-32B":[[0,96.3,96.3],[5,91.5,96.4],[15,77.0,94.7],[30,42.4,94.4]],"Qwen3-VL-235B-A22B":[[0,96.3,96.3],[5,89.2,96.7],[15,78.9,96.8],[30,52.0,95.4]],"Qwen2.5-VL-72B":[[0,90.0,100.0],[5,83.8,97.3],[15,72.1,97.7],[30,51.7,91.7]]};
-const MAIN = [["docTR",80.1,86.5,79.9,91.7],["PP-LCNet",78.5,89.0,64.1,97.8],["Swin-T",75.5,85.2,71.0,93.2],["BEiT-B",78.4,80.5,67.5,81.1],["Qwen3-VL-8B",32.6,80.5,33.4,83.9],["Qwen3-VL-30B-A3B",41.7,70.7,34.8,76.1],["Qwen3-VL-32B",44.3,95.8,35.1,95.2],["Qwen3-VL-235B-A22B",48.8,91.3,34.3,96.2],["Qwen2.5-VL-72B†",37.3,93.0,26.7,95.3]];
-document.getElementById("main").innerHTML = MAIN.map(r => `<tr><td>${r[0]}</td><td>${r[1].toFixed(1)}</td><td class="ours">${r[2].toFixed(1)}<span class="gain">+${(r[2]-r[1]).toFixed(1)}</span></td><td>${r[3].toFixed(1)} → <b>${r[4].toFixed(1)}</b></td></tr>`).join("");
+const TILT={"docTR":[[88.9,90.1],[90.0,90.5],[91.5,94.9],[61.5,90.0]],"PP-LCNet":[[98.8,97.5],[96.4,98.7],[66.9,98.1],[37.1,97.0]],"Swin-T":[[92.6,92.0],[91.8,94.1],[87.2,94.0],[62.7,92.1]],"BEiT-B":[[83.3,75.9],[81.7,79.4],[85.9,85.1],[63.8,80.0]],"Qwen3-VL-8B":[[81.5,84.6],[82.8,84.6],[75.0,83.1],[46.4,84.2]],"Qwen3-VL-30B-A3B":[[77.2,76.5],[64.8,77.9],[51.8,76.1],[38.1,74.9]],"Qwen3-VL-32B":[[96.3,96.3],[91.5,96.4],[77.0,94.7],[42.4,94.4]],"Qwen3-VL-235B-A22B":[[96.3,96.3],[89.2,96.7],[78.9,96.8],[52.0,95.4]],"GPT-4o-mini":[[72.2,68.5],[79.9,68.1],[65.3,68.4],[42.4,68.0]],"Gemma-4-31B":[[86.4,93.8],[90.2,93.8],[87.0,92.3],[60.5,92.8]]};
+const BINS=["0–5°","5–15°","15–30°","30–45°"];
+const MAIN=[["Classifiers"],["docTR",80.1,86.5,79.9,91.7],["PP-LCNet",78.5,89.0,64.1,97.8],["Swin-T",75.5,85.2,71.0,93.2],["BEiT-B",78.4,80.5,67.5,81.1],
+  ["Vision-language models"],["Qwen3-VL-8B",32.6,80.5,33.4,83.9],["Qwen3-VL-30B-A3B",41.7,70.7,34.8,76.1],["Qwen3-VL-32B",44.3,95.8,35.1,95.2],["Qwen3-VL-235B-A22B",48.8,91.3,34.3,96.2],["GPT-4o-mini",34.3,69.9,37.2,68.2],["Gemma-4-31B",62.0,94.5,49.2,93.0]];
+document.getElementById("mainTbl").innerHTML=MAIN.map(r=>r.length===1?`<tr class="group"><td colspan="4">${r[0]}</td></tr>`:`<tr><td>${r[0]}</td><td>${r[1].toFixed(1)}</td><td class="ours">${r[2].toFixed(1)}<span class="delta">+${(r[2]-r[1]).toFixed(1)}</span></td><td>${r[3].toFixed(1)} → <b>${r[4].toFixed(1)}</b></td></tr>`).join("");
 
-const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-const charts = [];
-function theme(){ Chart.defaults.color = css("--muted"); Chart.defaults.borderColor = css("--line"); Chart.defaults.font.family = "Inter, system-ui, sans-serif"; }
-theme();
-const axes = (min, max, title) => ({ y:{min, max, title:{display:true,text:title}}, x:{grid:{display:false}} });
-
-const tiltChart = new Chart(document.getElementById("tilt"), {type:"line", data:{labels:["0–5°","5–15°","15–30°","30–45°"], datasets:[
-  {label:"Classify-first + vote", data:[], borderColor:css("--base"), backgroundColor:css("--base"), borderDash:[5,4], tension:.25, pointRadius:4},
-  {label:"LevelHead", data:[], borderColor:css("--ours"), backgroundColor:css("--ours"), borderWidth:3, tension:.25, pointRadius:5}]},
-  options:{responsive:true, maintainAspectRatio:false, scales:axes(20,100,"accuracy (%)"), plugins:{legend:{position:"bottom"}, tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}}}});
-charts.push(tiltChart);
-function pick(name){
-  tiltChart.data.datasets[0].data = TILT[name].map(b=>b[1]); tiltChart.data.datasets[1].data = TILT[name].map(b=>b[2]); tiltChart.update();
-  document.querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c.dataset.name === name));
+/* ---------- interactive page ---------- */
+const tok=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const sel=document.getElementById("bb"); Object.keys(TILT).forEach(n=>sel.add(new Option(n,n))); sel.value="PP-LCNet";
+function drawPage(cv,deg){
+  const c=cv.getContext("2d"),W=cv.width; c.clearRect(0,0,W,W); c.save(); c.translate(W/2,W/2); c.rotate(deg*Math.PI/180);
+  const w=W*0.5,h=W*0.66; c.fillStyle=tok("--pagefill"); c.shadowColor="rgba(20,40,70,.18)"; c.shadowBlur=14; c.fillRect(-w/2,-h/2,w,h); c.shadowBlur=0;
+  c.fillStyle=tok("--accent"); c.fillRect(-w/2+18,-h/2+18,w*0.62,15);           // title marks the top
+  c.fillStyle=tok("--pageink");
+  for(let i=0;i<13;i++){const y=-h/2+52+i*15.5; const len=(i%5===4)?0.55:0.86; c.fillRect(-w/2+18,y,(w-36)*len,6);}
+  c.restore();
 }
-const chips = document.getElementById("chips");
-Object.keys(TILT).forEach(n => { const b = document.createElement("button"); b.className = "chip"; b.textContent = n; b.dataset.name = n; b.onclick = () => pick(n); chips.appendChild(b); });
-pick("PP-LCNet");
+function update(){
+  const th=+document.getElementById("theta").value; let s=((th+45)%90+90)%90-45; const k=Math.round((th-s)/90)%4;
+  drawPage(document.getElementById("cIn"),th); drawPage(document.getElementById("cLv"),th-s);
+  document.getElementById("eq").innerHTML=`θ = ${th}° = 90° × <b>${k}</b> + <b>${s>=0?"+":"−"}${Math.abs(s).toFixed(0)}°</b> tilt`;
+  const a=Math.abs(s), i=a<5?0:a<15?1:a<30?2:3, d=TILT[sel.value][i];
+  for(const [id,v] of [["CF",d[0]],["LH",d[1]]]){document.getElementById("f"+id).style.width=v+"%";document.getElementById("v"+id).textContent=v.toFixed(0)+"%";}
+  document.getElementById("note").textContent=`Accuracy of ${sel.value} on ODB-any pages tilted ${BINS[i]} off a quarter turn, both orders with the same four-view vote.`;
+}
+document.getElementById("theta").addEventListener("input",update); sel.addEventListener("change",()=>{update();pick(sel.value);});
 
-charts.push(new Chart(document.getElementById("order"), {type:"bar", data:{labels:["Classifiers","VLMs"], datasets:[
-  {label:"Classify-first", data:[71.9,31.0], backgroundColor:css("--base")},
-  {label:"+ vote", data:[77.6,55.7], backgroundColor:"#9DB9DE"},
-  {label:"Level-first", data:[83.7,46.7], backgroundColor:css("--mid")},
-  {label:"LevelHead", data:[85.2,86.7], backgroundColor:css("--ours")}]},
-  options:{responsive:true, maintainAspectRatio:false, scales:axes(0,100,"accuracy (%)"), plugins:{legend:{position:"bottom"}}}}));
-
-charts.push(new Chart(document.getElementById("deskew"), {type:"bar", data:{labels:["Screen photos","Oblique photos","DISE scans","ODB-any"], datasets:[
-  {label:"jdeskew (released)", data:[30.6,33.3,0.7,0.6], backgroundColor:css("--base")},
-  {label:"projection profile", data:[5.5,10.3,12.0,1.3], backgroundColor:"#9DB9DE"},
-  {label:"jdeskew + Hann (ours)", data:[1.3,2.6,0.4,0.4], backgroundColor:css("--ours")}]},
-  options:{responsive:true, maintainAspectRatio:false, scales:axes(0,35,"% more than 15° off"), plugins:{legend:{position:"bottom"}}}}));
-
-document.getElementById("theme").onclick = () => {
-  const r = document.documentElement, dark = r.dataset.theme ? r.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-  r.dataset.theme = dark ? "light" : "dark"; theme();
-  charts.forEach(c => { c.options.scales.y.grid = {color: css("--line")}; c.update(); });
-};
+/* ---------- charts ---------- */
+let charts=[];
+function build(){
+  charts.forEach(c=>c.destroy()); charts=[];
+  Chart.defaults.color=tok("--muted"); Chart.defaults.borderColor=tok("--rule"); Chart.defaults.font.family="IBM Plex Sans, system-ui, sans-serif";
+  const yax=(min,max,t)=>({y:{min,max,title:{display:true,text:t},grid:{color:tok("--rule")}},x:{grid:{display:false}}});
+  const tc=new Chart(document.getElementById("tiltChart"),{type:"line",data:{labels:BINS,datasets:[
+    {label:"Classify-first + vote",data:[],borderColor:tok("--grey"),backgroundColor:tok("--grey"),borderDash:[6,4],tension:.25,pointRadius:4},
+    {label:"LevelHead",data:[],borderColor:tok("--accent"),backgroundColor:tok("--accent"),borderWidth:3,tension:.25,pointRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:yax(20,100,"accuracy (%)"),plugins:{legend:{position:"bottom"},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.y.toFixed(1)}%`}}}}});
+  charts.push(tc);
+  charts.push(new Chart(document.getElementById("orderChart"),{type:"bar",data:{labels:["Classifiers (4)","Qwen VLMs (5)"],datasets:[
+    {label:"Classify-first",data:[71.9,31.0],backgroundColor:tok("--grey")},{label:"+ vote",data:[77.6,55.7],backgroundColor:tok("--pale")},
+    {label:"Level-first",data:[83.7,46.7],backgroundColor:tok("--mid")},{label:"LevelHead",data:[85.2,86.7],backgroundColor:tok("--accent")}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:yax(0,100,"accuracy (%)"),plugins:{legend:{position:"bottom"}}}}));
+  charts.push(new Chart(document.getElementById("deskewChart"),{type:"bar",data:{labels:["Screen photos","Oblique photos","DISE scans","ODB-any"],datasets:[
+    {label:"jdeskew, released",data:[30.6,33.3,0.7,0.6],backgroundColor:tok("--grey")},{label:"projection profile",data:[5.5,10.3,12.0,1.3],backgroundColor:tok("--pale")},
+    {label:"jdeskew + Hann (ours)",data:[1.3,2.6,0.4,0.4],backgroundColor:tok("--accent")}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:yax(0,35,"% more than 15° off"),plugins:{legend:{position:"bottom"}}}}));
+  window.tiltChart=tc; pick(current);
+}
+let current="PP-LCNet";
+const chips=document.getElementById("chips");
+Object.keys(TILT).forEach(n=>{const b=document.createElement("button");b.className="chip";b.textContent=n;b.dataset.name=n;b.type="button";b.onclick=()=>{pick(n);sel.value=n;update();};chips.appendChild(b);});
+function pick(n){current=n;const t=window.tiltChart;if(!t)return;t.data.datasets[0].data=TILT[n].map(b=>b[0]);t.data.datasets[1].data=TILT[n].map(b=>b[1]);t.update();
+  chips.querySelectorAll(".chip").forEach(c=>c.setAttribute("aria-pressed",String(c.dataset.name===n)));}
+build(); update();
+document.getElementById("themeBtn").onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme: dark)").matches;r.dataset.theme=dark?"light":"dark";build();update();};
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{build();update();});
 </script>
 </body>
 </html>
