@@ -14,9 +14,9 @@ from jdeskew.estimator import get_angle
 fold = lambda d: ((d + 45) % 90) - 45
 
 def hann_angle(img, height=2048, angle_max=45, num=20):
-    """jdeskew's radial projection with two fixes. (1) The page is Hann-tapered before the DFT: untapered, the DFT treats
-    the image as periodic, so its borders add a bright cross at 0/90 deg that wins whenever they cut through content
-    (rotated crops, photos). (2) A peak at the edge of the search range is returned as is; the released code maps it to 0,
+    """jdeskew's radial projection with two fixes. (1) The page is Hann-tapered before the DFT: jdeskew pads with white and
+    then thresholds, so a photo darker than white gains an ink line along the padding, a bright cross at 0/90 deg that
+    wins over the text; the taper fades the page boundary and the line. (2) A peak at the edge of the search range is returned as is; the released code maps it to 0,
     a rule meant for blank pages, which here are the pages with a flat profile."""
     import cv2
     from jdeskew.estimator import _ensure_gray, _ensure_optimal_square

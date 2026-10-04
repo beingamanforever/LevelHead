@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="LevelHead: deskew before you classify. Training-free page orientation for any model, with a live in-browser deskewer.">
+<meta name="description" content="LevelHead: deskew before you classify. A live in-browser deskewer and PP-LCNet classifier.">
 <title>LevelHead</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/ort.min.js"></script>
 <style>
 /* One deliberate light theme after Sarvam's product UI: grey frame, white canvas, hairline borders, pill controls. */
 :root{
@@ -146,6 +147,44 @@ select{font:inherit;font-size:13.5px;padding:7px 12px;border-radius:999px;border
 .opt:active{transform:scale(.95)}
 .opt[aria-pressed="true"]{background:var(--dark);border-color:var(--dark);color:#fff}
 .chart{position:relative;height:280px}
+
+/* step 2 */
+.s2grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media (max-width:820px){.s2grid{grid-template-columns:repeat(2,1fr)}}
+.vcard{border:1px solid var(--rule);border-radius:16px;padding:10px;display:grid;gap:8px;background:var(--canvas);transition:transform .4s var(--spring),box-shadow .25s}
+.vcard:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(16,24,40,.06)}
+.vthumb{aspect-ratio:1;border-radius:12px;background:var(--soft);display:grid;place-items:center;overflow:hidden;border:1px solid var(--rule)}
+.vthumb canvas{max-width:90%;max-height:90%}
+.vlabel{display:flex;justify-content:space-between;font:500 12px var(--mono);color:var(--muted)}
+.mini{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-top:4px}
+.mb{display:flex;flex-direction:column;align-items:center;gap:4px}
+.mb .bw{height:56px;width:100%;display:flex;align-items:flex-end;justify-content:center}
+.mb i{display:block;width:100%;max-width:22px;border-radius:6px 6px 3px 3px;background:var(--mark);height:2%;transition:height .7s var(--spring),background .3s}
+.mb i.top{background:var(--dark)}
+.mb span{font:500 10.5px var(--mono);color:var(--muted)}
+.flow{display:grid;grid-template-columns:1.1fr 1fr;gap:16px}
+@media (max-width:880px){.flow{grid-template-columns:1fr}}
+.mat{display:grid;grid-template-columns:auto repeat(4,1fr);gap:4px;align-items:center;font:500 12px var(--mono)}
+.mat .h{color:var(--muted);text-align:center;padding-bottom:2px}
+.mat .r{color:var(--muted);padding-right:8px;white-space:nowrap}
+.mat .c{height:34px;border-radius:8px;display:grid;place-items:center;color:var(--ink);transition:background .5s var(--ease)}
+.post{display:grid;gap:10px}
+.prow{display:grid;grid-template-columns:62px 1fr 54px;gap:10px;align-items:center;font-size:13px}
+.prow .track{height:12px}
+.prow .fill{background:var(--dark)}
+.prow.cf .fill{background:var(--mark)}
+.prow.win span:first-child{color:var(--ink);font-weight:600}
+.verdict{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--rule);border-radius:14px;background:var(--soft)}
+.verdict b{font:500 18px var(--mono);color:var(--ink)}
+.result{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.result{grid-template-columns:1fr}}
+.rbox{display:grid;gap:6px}
+.rbox .view{aspect-ratio:4/3}
+.rbox span{font-size:12.5px;color:var(--muted)}
+.mstat{display:inline-flex;align-items:center;gap:7px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mark)}
+.dot.ok{background:var(--green)} .dot.load{background:var(--brand);animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
 </head>
@@ -298,9 +337,33 @@ select{font:inherit;font-size:13.5px;padding:7px 12px;border-radius:999px;border
     </section>
 
     <section>
-      <h2>Step 2: the four views a backbone votes on</h2>
-      <div class="views" id="views"></div>
-      <p class="note"><svg class="i" style="margin-top:3px"><use href="#i-info"/></svg>Any orientation model, a CNN or a VLM, scores these four turns of the level page; LevelHead rolls the answers back and multiplies them. The classifier needs a neural network, so this step runs in the Python package rather than in the page.</p>
+      <div class="boxhead"><h2>Step 2: score the four turns</h2><span class="chip flat mstat" id="mstat"><span class="dot load"></span>Loading model</span></div>
+      <p class="sub" style="max-width:none">A real orientation classifier, PaddleOCR's PP-LCNet (7 MB), runs on your device. It scores each quarter turn of the level page; each bar is the probability that the view is turned that far counterclockwise.</p>
+      <div class="s2grid" id="s2views"></div>
+    </section>
+
+    <section>
+      <div class="flow">
+        <div class="box">
+          <h3>Roll back into the page's frame</h3>
+          <p style="font-size:13.5px;color:var(--muted)">View j was turned j quarter turns, so its answer is read j places along. A correct model now agrees column by column.</p>
+          <div class="mat" id="mat"></div>
+        </div>
+        <div class="box">
+          <h3>Combine with a geometric mean</h3>
+          <div class="post" id="post"></div>
+          <div class="post" id="cfpost" style="padding-top:6px;border-top:1px solid var(--rule)"></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="verdict" id="verdict"><span style="color:var(--muted)">Final answer</span><b>–</b></div>
+      <div class="result">
+        <div class="rbox"><div class="view" id="cfView"><span class="badge">classify-first</span><canvas id="cfCv"></canvas></div><span id="cfNote">Classify the page as given with one view, then deskew.</span></div>
+        <div class="rbox"><div class="view" id="lhView"><span class="badge">LevelHead</span><canvas id="lhCv"></canvas></div><span id="lhNote">Level first, vote over four turns, then turn the page upright.</span></div>
+      </div>
+      <p class="note"><svg class="i" style="margin-top:3px"><use href="#i-info"/></svg>Everything above runs in this page: the deskewer in a Web Worker, the classifier with ONNX Runtime Web. The paper evaluates many backbones; this demo uses PP-LCNet, the most accurate classifier on level pages.</p>
     </section>
   </div>
 
@@ -408,7 +471,7 @@ const Demo=(()=>{
     $("roTilt").textContent=(r.tilt>=0?"+":"−")+Math.abs(r.tilt).toFixed(1)+"°"; $("roRot").textContent=(r.tilt===0?"none":`${Math.abs(r.tilt).toFixed(1)}° ${r.tilt>0?"ccw":"cw"}`);
     $("roMs").textContent=Math.round(r.ms)+" ms"; $("outBadge").textContent="level, a quarter turn off at most";
     const rel=!$("hann").checked&&!$("edge").checked, m=$("mode"); m.textContent=rel?"Released jdeskew":($("hann").checked&&$("edge").checked?"LevelHead deskewer":"Partly corrected"); m.className="chip "+(rel?"warn":$("hann").checked&&$("edge").checked?"up":"flat");
-    drawSpec(r); drawProj(r); drawViews(out);
+    drawSpec(r); drawProj(r); Step2.run(composed, r.tilt);
   }
   function drawSpec(r){const cv=$("spec"),g=cv.getContext("2d"),S=256,img=g.createImageData(S,S);let v=Array.from(r.spec).sort((a,b)=>a-b);const lo=v[Math.floor(v.length*.5)],hi=v[Math.floor(v.length*.997)];
     for(let i=0;i<S*S;i++){const t=Math.max(0,Math.min(1,(r.spec[i]-lo)/(hi-lo)));const c=Math.round(255*Math.pow(t,1.1));img.data[4*i]=c;img.data[4*i+1]=c;img.data[4*i+2]=Math.min(255,c+12);img.data[4*i+3]=255;}
@@ -421,14 +484,6 @@ const Demo=(()=>{
     g.strokeStyle="#1b1f2b";g.lineWidth=1.6;g.beginPath();p.forEach((v,i)=>i?g.lineTo(X(i),Y(v)):g.moveTo(X(i),Y(v)));g.stroke();
     const bx=X(r.best),by=Y(p[r.best]);g.fillStyle="#f26b21";g.beginPath();g.arc(bx,by,4,0,7);g.fill();g.fillStyle="#15171c";g.font="500 11px Geist Mono, monospace";
     g.fillText(`peak ${r.angles[r.best].toFixed(1)}°${r.tilt===0&&Math.abs(r.angles[r.best])>1?" → 0° (edge rule)":""}`,Math.min(bx+8,W-150),Math.max(by-6,14));}
-  function drawViews(out){const host=$("views");host.innerHTML="";
-    // the level page: the composed image rotated counterclockwise by the tilt
-    const t=last.tilt*Math.PI/180,w=composed.width,h=composed.height,bw=Math.abs(w*Math.cos(t))+Math.abs(h*Math.sin(t)),bh=Math.abs(w*Math.sin(t))+Math.abs(h*Math.cos(t));
-    const lv=document.createElement("canvas"),s=Math.min(1,360/Math.max(bw,bh));lv.width=Math.round(bw*s);lv.height=Math.round(bh*s);const g=lv.getContext("2d");g.fillStyle="#fff";g.fillRect(0,0,lv.width,lv.height);
-    g.translate(lv.width/2,lv.height/2);g.rotate(-t);g.drawImage(composed,-w*s/2,-h*s/2,w*s,h*s);
-    [0,90,180,270].forEach((d,k)=>{const cell=document.createElement("div");cell.className="vcell";const box=document.createElement("div");box.className="vb";const c=document.createElement("canvas");
-      const sw=k%2?lv.height:lv.width,sh=k%2?lv.width:lv.height;c.width=sw;c.height=sh;const cg=c.getContext("2d");cg.translate(sw/2,sh/2);cg.rotate(-d*Math.PI/180);cg.drawImage(lv,-lv.width/2,-lv.height/2);
-      box.appendChild(c);cell.appendChild(box);const lab=document.createElement("span");lab.textContent=`view ${k} · +${d}° ccw`;cell.appendChild(lab);host.appendChild(cell);});}
   function load(url,btn){const im=new Image();im.onload=()=>{src=im;extra=0;quarter=0;$("extra").value=0;$("extraV").textContent="0°";run();};im.src=url;
     document.querySelectorAll(".sample").forEach(b=>b.setAttribute("aria-pressed",String(b===btn)));}
   async function start(){
@@ -446,6 +501,84 @@ const Demo=(()=>{
     addEventListener("resize",()=>{if(last){fit($("inView"),$("inCv"),0);fit($("outView"),$("outCv"),last.tilt);drawProj(last);}});
   }
   return {start};
+})();
+
+
+/* ---------------- Step 2: a real classifier in the page (docTR MobileNetV3, ONNX Runtime Web) ---------------- */
+const Step2=(()=>{
+  const $=id=>document.getElementById(id), MEAN=[.485,.456,.406], STD=[.229,.224,.225], CW=["0°","90°","180°","270°"];
+  let session=null, loading=null, job=0;
+  function status(kind,text){$("mstat").innerHTML=`<span class="dot ${kind}"></span>${text}`;}
+  async function load(){
+    if(loading)return loading;
+    loading=(async()=>{
+      ort.env.wasm.wasmPaths="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/"; ort.env.wasm.numThreads=1; ort.env.wasm.proxy=false;
+      const b64=await (await fetch("model/ppdoc.onnx.b64.txt")).text(), bin=atob(b64.trim()), bytes=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);   // the model ships as base64 text, a type every static host serves
+      for(const ep of ["wasm","webgl"]){try{session=await ort.InferenceSession.create(bytes,{executionProviders:[ep]});return ep;}catch(e){console.warn(ep,e);}}
+      throw new Error("no backend");
+    })();
+    return loading;
+  }
+  function levelPage(img,tilt){     // Step 1's output as the paper builds it: rotate level, fill with the border colour, crop to ink
+    const g0=img.getContext("2d"),w=img.width,h=img.height,d=g0.getImageData(0,0,w,h).data,edge=[[],[],[]];
+    const take=(x,y)=>{const i=4*(y*w+x);edge[0].push(d[i]);edge[1].push(d[i+1]);edge[2].push(d[i+2]);};
+    for(let x=0;x<w;x+=2){take(x,0);take(x,h-1);} for(let y=0;y<h;y+=2){take(0,y);take(w-1,y);}
+    const med=a=>a.sort((p,q)=>p-q)[a.length>>1], fill=`rgb(${med(edge[0])},${med(edge[1])},${med(edge[2])})`;
+    if(Math.abs(tilt)<1)return img;
+    const t=-tilt*Math.PI/180,bw=Math.abs(w*Math.cos(t))+Math.abs(h*Math.sin(t)),bh=Math.abs(w*Math.sin(t))+Math.abs(h*Math.cos(t));
+    const c=document.createElement("canvas");c.width=Math.round(bw);c.height=Math.round(bh);const g=c.getContext("2d",{willReadFrequently:true});
+    g.fillStyle=fill;g.fillRect(0,0,c.width,c.height);g.translate(bw/2,bh/2);g.rotate(t);g.drawImage(img,-w/2,-h/2);
+    const D=g.getImageData(0,0,c.width,c.height).data;let x0=c.width,y0=c.height,x1=-1,y1=-1;
+    for(let y=0;y<c.height;y+=2)for(let x=0;x<c.width;x+=2){const i=4*(y*c.width+x);if(.299*D[i]+.587*D[i+1]+.114*D[i+2]<128){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y;}}
+    if(x1<0)return c; const o=document.createElement("canvas");o.width=x1-x0+1;o.height=y1-y0+1;o.getContext("2d").drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);return o;
+  }
+  function turnCCW(img,k){const c=document.createElement("canvas");c.width=k%2?img.height:img.width;c.height=k%2?img.width:img.height;const g=c.getContext("2d");g.translate(c.width/2,c.height/2);g.rotate(-k*Math.PI/2);g.drawImage(img,-img.width/2,-img.height/2);return c;}
+  function tensorOf(imgs){         // PaddleOCR's preprocessing: shorter side to 256, centre crop 224, BGR order, ImageNet normalisation
+    const N=imgs.length,P=224*224,data=new Float32Array(N*3*P),c=document.createElement("canvas");c.width=c.height=224;const g=c.getContext("2d",{willReadFrequently:true});
+    imgs.forEach((im,n)=>{const s=256/Math.min(im.width,im.height),w=im.width*s,h=im.height*s;g.imageSmoothingQuality="high";g.clearRect(0,0,224,224);
+      g.drawImage(im,(224-w)/2,(224-h)/2,w,h);const d=g.getImageData(0,0,224,224).data;
+      for(let i=0;i<P;i++){const b=d[4*i+2]/255,gg=d[4*i+1]/255,r=d[4*i]/255;data[n*3*P+i]=(b-MEAN[0])/STD[0];data[n*3*P+P+i]=(gg-MEAN[1])/STD[1];data[n*3*P+2*P+i]=(r-MEAN[2])/STD[2];}});
+    return new ort.Tensor("float32",data,[N,3,224,224]);
+  }
+  const softmax=l=>{const m=Math.max(...l),e=l.map(v=>Math.exp(v-m)),s=e.reduce((a,b)=>a+b);return e.map(v=>v/s);};
+  function thumb(img,size){const c=document.createElement("canvas"),s=size/Math.max(img.width,img.height);c.width=Math.round(img.width*s);c.height=Math.round(img.height*s);c.getContext("2d").drawImage(img,0,0,c.width,c.height);return c;}
+  function bars(p){const top=p.indexOf(Math.max(...p));return `<div class="mini">${p.map((v,k)=>`<div class="mb"><div class="bw"><i class="${k===top?"top":""}" data-h="${Math.max(3,v*100)}"></i></div><span>${CW[k]}</span></div>`).join("")}</div>`;}
+  function grow(root){requestAnimationFrame(()=>root.querySelectorAll("[data-h]").forEach(el=>el.style.height=el.dataset.h+"%"));}
+  function upright(view,cv,img,angle){cv.width=img.width;cv.height=img.height;cv.getContext("2d").drawImage(img,0,0);
+    const W=view.clientWidth,H=view.clientHeight,r=Math.abs(angle%180)*Math.PI/180,bw=img.width*Math.abs(Math.cos(r))+img.height*Math.sin(r),bh=img.width*Math.sin(r)+img.height*Math.abs(Math.cos(r)),s=Math.min((W-24)/bw,(H-24)/bh);
+    cv.style.width=img.width*s+"px";cv.style.height=img.height*s+"px";cv.style.transition="none";cv.style.transform="rotate(0deg)";void cv.offsetWidth;cv.style.transition="";
+    const a=((angle%360)+360)%360, shortest=a>180?a-360:a; cv.style.transform=`rotate(${-shortest}deg)`;}
+  async function run(composed,tilt){
+    const id=++job;
+    try{
+      if(!session){status("load","Loading PP-LCNet (7 MB)");const ep=await load();status("ok",`PP-LCNet · on-device · ${ep}`);}
+      if(id!==job)return;
+      const lv=levelPage(composed,tilt), views=[0,1,2,3].map(k=>turnCCW(lv,k));
+      const t0=performance.now(), out=await session.run({[session.inputNames[0]]:tensorOf([...views,composed])});
+      if(id!==job)return;
+      const O=Array.from(out[session.outputNames[0]].data), P=[0,1,2,3,4].map(i=>[0,1,2,3].map(k=>O[4*i+(4-k)%4]));   // PP-LCNet scores clockwise turns; P[j][k]: view j turned k quarter turns ccw
+      status("ok",`PP-LCNet · on-device · ${Math.round(performance.now()-t0)} ms`);
+      // the four views and their scores (shown as the turn each view needs, clockwise, so 0° means "already upright")
+      const host=$("s2views");host.innerHTML="";
+      views.forEach((v,j)=>{const cw=[0,1,2,3].map(c=>P[j][(4-c)%4]);const el=document.createElement("div");el.className="vcard";
+        el.innerHTML=`<div class="vthumb"></div><div class="vlabel"><span>view ${j}</span><span>+${90*j}° ccw</span></div>${bars(cw)}`;el.querySelector(".vthumb").appendChild(thumb(v,220));host.appendChild(el);});
+      grow(host);
+      // roll back: view j's answer read j places along -> every row in the level page's frame (clockwise turn of the page)
+      const rolled=[0,1,2,3].map(j=>[0,1,2,3].map(c=>P[j][((4-c)%4+j)%4]));
+      $("mat").innerHTML=`<span></span>${CW.map(c=>`<span class="h">${c}</span>`).join("")}`+rolled.map((row,j)=>`<span class="r">view ${j}</span>`+row.map(v=>`<span class="c" style="background:rgba(27,31,43,${(.06+.88*v).toFixed(3)});color:${v>.5?"#fff":"var(--ink)"}">${(100*v).toFixed(0)}</span>`).join("")).join("");
+      // geometric mean (product of experts) vs classify-first's single view of the page as given
+      const logm=[0,1,2,3].map(c=>rolled.reduce((a,r)=>a+Math.log(Math.max(r[c],1e-4)),0)/4), post=softmax(logm), win=post.indexOf(Math.max(...post));
+      const cf=[0,1,2,3].map(c=>P[4][(4-c)%4]), cfwin=cf.indexOf(Math.max(...cf));
+      const rows=(p,w,cls,title)=>`<span style="font-size:12.5px;color:var(--muted)">${title}</span>`+p.map((v,c)=>`<div class="prow ${cls} ${c===w?"win":""}"><span>${CW[c]}</span><div class="track"><div class="fill" data-w="${(100*v).toFixed(1)}" style="width:0"></div></div><span class="v">${(100*v).toFixed(1)}%</span></div>`).join("");
+      $("post").innerHTML=rows(post,win,"","LevelHead: level, four views, geometric mean"); $("cfpost").innerHTML=rows(cf,cfwin,"cf","Classify-first: one view of the page as given");
+      requestAnimationFrame(()=>document.querySelectorAll("#post .fill,#cfpost .fill").forEach(el=>el.style.width=el.dataset.w+"%"));
+      // final angles: the page is turned tilt + 90 c clockwise; turning it back counterclockwise makes it upright
+      const lhA=((tilt+90*win)%360+360)%360, cfA=((tilt+90*cfwin)%360+360)%360;
+      $("verdict").innerHTML=`<span style="color:var(--muted)">LevelHead says the page is turned</span><b>${lhA.toFixed(1)}° clockwise</b><span style="color:var(--muted)">= 90° × ${win} ${tilt<0?"−":"+"} ${Math.abs(tilt).toFixed(1)}°</span>${cfwin!==win?`<span class="chip warn">classify-first says ${cfA.toFixed(1)}°</span>`:`<span class="chip up">classify-first agrees</span>`}`;
+      upright($("lhView"),$("lhCv"),composed,lhA); upright($("cfView"),$("cfCv"),composed,cfA);
+    }catch(e){status("","Classifier unavailable in this browser");console.error(e);}
+  }
+  return {run};
 })();
 
 /* ---------------- explore ---------------- */
