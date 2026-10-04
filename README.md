@@ -30,6 +30,7 @@ Orientation models are trained on level pages, so a tilted page fools them befor
 | 4 Qwen3-VL models, 7 benchmarks | 41.9 | **84.6** |
 | GPT-4o-mini, 7 benchmarks | 34.3 | **69.9** |
 | Gemma-4-31B, 7 benchmarks | 62.0 | **94.5** |
+| DeepSeek-V4.1-Flash, 7 benchmarks | 68.8 | **96.5** |
 | 4 classifiers, phone photos at any angle | 69.3 | **89.8** |
 | 4 classifiers, DISE scans at any angle | 65.0 | **91.3** |
 

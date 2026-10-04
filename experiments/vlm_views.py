@@ -44,6 +44,8 @@ def ask(img, text):
     body = {"model": MODEL, "temperature": 0, "max_tokens": 16, "reasoning": {"enabled": False}, "usage": {"include": True},
             "messages": [{"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{b64(img)}"} | ({"detail": DETAIL} if DETAIL else {})}, {"type": "text", "text": text}]}]}
+    if os.environ.get("REASONING") == "1":   # models whose endpoint cannot disable reasoning: let it think, read the final letter
+        body.pop("reasoning"); body["max_tokens"] = 2048
     if LOGPROBS: body |= {"logprobs": True, "top_logprobs": 5}  # 5 = the cap of Alibaba's Qwen endpoint; four letters fit
     if LOGPROBS and os.environ.get("REQUIRE") == "1": body["provider"] = {"require_parameters": True}   # route only to providers that return log-probabilities
     err = None

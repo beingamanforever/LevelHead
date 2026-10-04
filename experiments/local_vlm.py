@@ -26,9 +26,13 @@ def prompt(order):   # identical to vlm_views.py
             f"which way the top of the text points in this image.\n{lines}\nReply with only the letter (A, B, C or D), nothing else.")
 
 proc = AutoProcessor.from_pretrained(MODEL, revision=REV)
-if hasattr(proc, "image_processor") and "longest_edge" in (getattr(proc.image_processor, "size", None) or {}):
-    proc.image_processor.size = {"longest_edge": 2 * 364}   # 2 x 2 tiles + a global view: legible text at a quarter of the default cost
-try: model = AutoModelForImageTextToText.from_pretrained(MODEL, revision=REV, dtype=torch.bfloat16)
+if os.environ.get("MAX_EDGE"):   # opt-in cap on the image size for processors that tile by longest edge (e.g. Idefics3)
+    proc.image_processor.size = {"longest_edge": int(os.environ["MAX_EDGE"])}
+extra = {}
+if os.environ.get("DEQUANT_FP8") == "1":   # FP8 checkpoints (Ministral 3) on a GPU without FP8 kernels: load as bf16
+    from transformers import FineGrainedFP8Config
+    extra["quantization_config"] = FineGrainedFP8Config(dequantize=True)
+try: model = AutoModelForImageTextToText.from_pretrained(MODEL, revision=REV, dtype=torch.bfloat16, **extra)
 except ValueError: model = AutoModelForCausalLM.from_pretrained(MODEL, revision=REV, dtype=torch.bfloat16)   # Phi-4-multimodal registers as a causal LM
 model = model.to("cuda").eval()
 letter_ids = [proc.tokenizer.encode(c, add_special_tokens=False)[-1] for c in LETTERS]
@@ -63,6 +67,8 @@ if __name__ == "__main__":
     subset = json.load(open(B / "vlm" / "subset.json")); skews = json.load(open(B / "skew.json"))
     for m in subset: s = skews[m["path"]]; m["skew"] = s if abs(s) >= 1 else 0.0
     if LIMIT: subset = subset[::max(1, len(subset) // LIMIT)][:LIMIT]
+    if os.environ.get("SUBSET"):   # e.g. the 950-page subset that Qwen2.5-VL-72B was run on
+        keep = {tuple(k) for k in json.load(open(os.environ["SUBSET"]))}; subset = [m for m in subset if (m["dataset"], m["split"], m["id"]) in keep]
     key = lambda m: (m["dataset"], m["split"], m["id"])
     done = {key(json.loads(l)) for l in open(OUT)} if OUT.exists() else set()
     todo = [m for m in subset if key(m) not in done]; print(MODEL, "todo", len(todo), flush=True); t0 = time.time()
