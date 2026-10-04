@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "levelhead"
+version = "0.1.0"
+description = "Deskew before you classify: training-free page orientation for any model"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "pillow>=10", "opencv-python-headless>=4.8"]
+
+[project.optional-dependencies]
+hf = ["torch>=2.1", "transformers>=4.40"]
+
+[tool.setuptools]
+packages = ["levelhead"]

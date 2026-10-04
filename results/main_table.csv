@@ -1,0 +1,10 @@
+backbone,family,ODB-4 classify-first,ODB-4 LevelHead,SROIE classify-first,SROIE LevelHead,SynthDoG classify-first,SynthDoG LevelHead,Indic-4 classify-first,Indic-4 LevelHead,ODB-any classify-first,ODB-any LevelHead,En-12 classify-first,En-12 LevelHead,Indic-8 classify-first,Indic-8 LevelHead
+docTR,classifier,82.7,91.8,97.7,99.4,55.0,54.8,74.7,83.8,79.9,91.7,98.0,100.0,72.6,84.3
+PP-LCNet,classifier,98.1,98.6,99.7,100.0,95.4,94.8,73.8,73.8,64.1,97.8,72.0,98.0,46.2,59.9
+Swin-T,classifier,90.2,92.8,88.2,91.4,72.4,76.0,73.2,77.4,71.0,93.2,76.0,100.0,57.7,65.4
+BEiT-B,classifier,82.0,85.4,97.4,98.8,86.6,87.2,57.9,59.5,67.5,81.1,100.0,100.0,57.4,51.3
+Qwen3-VL-8B,VLM,27.3,75.7,25.6,74.6,43.4,75.4,35.7,82.0,33.4,83.9,36.0,88.0,26.8,84.0
+Qwen3-VL-30B-A3B,VLM,44.9,74.0,56.2,84.1,46.6,65.0,51.5,66.8,34.8,76.1,34.0,62.0,24.1,67.1
+Qwen3-VL-32B,VLM,53.5,95.8,56.5,99.4,51.8,92.0,57.6,98.2,35.1,95.2,32.0,96.0,23.5,94.2
+Qwen3-VL-235B-A22B,VLM,57.2,95.9,67.1,95.7,57.0,92.4,56.1,86.0,34.3,96.2,44.0,92.0,25.7,80.9
+Qwen2.5-VL-72B (950-page subset),VLM,36.0,96.0,60.0,100.0,32.7,76.0,51.3,94.7,26.7,95.3,30.0,98.0,24.7,91.3
