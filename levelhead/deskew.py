@@ -2,9 +2,10 @@
 
 The tilt estimator is the radial projection of jdeskew (Pham et al., ICIP 2022) with two corrections:
 
-* the binarised page is multiplied by a 2-D Hann window before the FFT. Untapered, the FFT treats the image as one
-  tile of a periodic pattern, so borders that cut through a page (every photograph, every rotated crop) add a
-  bright cross on the frequency axes and the projection peaks at 0 degrees;
+* the binarised page is multiplied by a 2-D Hann window before the FFT. Like jdeskew, we pad the page to a square with
+  white and then threshold it, so a photograph (darker than white) gains a solid ink line where it meets the padding;
+  that straight edge puts a bright cross on the frequency axes and the projection peaks at 0 degrees. The taper fades
+  the page boundary and the line with it. (Thresholding before padding removes the line too.)
 * a peak at the edge of the search range is returned as is. The released code maps it to 0 degrees, a rule meant
   for blank pages; here 0 is returned only when the projection is flat.
 """
