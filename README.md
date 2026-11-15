@@ -4,13 +4,15 @@
 
 **Deskew before you classify: training-free page orientation for any model**
 
-[Interactive page](https://beingamanforever.github.io/LevelHead/) · [Quickstart](#quickstart) · [Results](#results)
+[Film](https://beingamanforever.github.io/LevelHead/#film) · [Interactive page](https://beingamanforever.github.io/LevelHead/) · [Quickstart](#quickstart) · [Results](#results)
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-1F5FAD.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-1F5FAD.svg)](#quickstart)
 ![Paper](https://img.shields.io/badge/paper-under%20review-9DB9DE.svg)
 
-<img src="assets/teaser.png" width="92%" alt="Classify-first vs LevelHead on a real page">
+<a href="https://beingamanforever.github.io/LevelHead/#film"><img src="assets/film-hook.gif" width="92%" alt="The film's opening: a page turned 152 degrees asks which way is up"></a>
+
+<sub>▶ <a href="https://beingamanforever.github.io/LevelHead/#film">Watch the 99-second film</a> with sound: the problem, the method step by step, and both test scores.</sub>
 
 </div>
 
@@ -24,6 +26,12 @@ Orientation models are trained on level pages, so a tilted page fools them befor
 
 ## Results
 
+<img src="assets/teaser.png" width="100%" alt="Classify-first vs LevelHead on a real page">
+
+Two tests, two scores: how often the angle is right, and how well the corrected page reads.
+
+**Guessing the angle**
+
 | | Classify-first | **LevelHead** |
 |---|:---:|:---:|
 | 4 orientation classifiers, pages at any angle | 71.9 | **85.2** |
@@ -35,6 +43,16 @@ Orientation models are trained on level pages, so a tilted page fools them befor
 | 4 classifiers, DISE scans at any angle | 65.0 | **91.3** |
 
 <sub>Accuracy (%) within 15°. Per-backbone numbers: [`results/main_table.csv`](results/main_table.csv); figures, galleries and charts: the [interactive page](https://beingamanforever.github.io/LevelHead/).</sub>
+
+**Reading the page**
+
+| OCR reader | As given | Classify-first | **LevelHead** | Oracle |
+|---|:---:|:---:|:---:|:---:|
+| docTR | 0.876 | 0.625 | **0.481** | 0.481 |
+| PP-OCRv5 | 0.758 | 0.648 | **0.527** | 0.523 |
+| Qwen3-VL-8B | 0.562 | 0.441 | **0.368** | 0.366 |
+
+<sub>Normalised edit distance (lower is better) against the OmniDocBench text on ODB-any (pages at any angle), with PP-LCNet as the orientation backbone; docTR reads the English pages only. Oracle: the true correction.</sub>
 
 ## How it works
 
@@ -70,7 +88,7 @@ Command line: `python examples/demo.py scan.jpg --out upright.jpg`.
 | `examples/`, `tests/` | command-line demo and end-to-end self-checks |
 | `experiments/` | benchmark builders (ODB-4/any, Real5-Rot, DISE-any), labels, VLM runners |
 | `results/` | per-backbone accuracies on the public benchmarks |
-| `docs/` | the interactive page |
+| `docs/` | the interactive page and the film (`levelhead-film.mp4`) |
 
 Builds on [jdeskew](https://github.com/phamquiluan/jdeskew) and evaluates on [OmniDocBench](https://github.com/opendatalab/OmniDocBench), [ORB](https://arxiv.org/abs/2511.04161), Real5-OmniDocBench and [DISE 2021](https://huggingface.co/datasets/phamquiluan/DISE-2021).
 The paper is under review; a citation will follow. Licensed under [Apache 2.0](LICENSE).

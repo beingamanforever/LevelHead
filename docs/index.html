@@ -59,7 +59,8 @@ section.first{border-top:0;padding-top:8px}
 p{margin:0}
 .tldr{font-size:17px;color:var(--ink)}
 figure{margin:0;display:grid;gap:9px}
-figure img{width:100%;height:auto;border:1px solid var(--rule);border-radius:16px;background:#fff;display:block}
+#film{scroll-margin-top:84px}
+figure img,figure video{width:100%;height:auto;border:1px solid var(--rule);border-radius:16px;background:#fff;display:block}
 figcaption{font-size:13.5px;color:var(--muted)}
 .tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:16px}
 table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
@@ -237,6 +238,11 @@ select{font:inherit;font-size:13.5px;padding:7px 12px;border-radius:999px;border
     <section class="first">
       <figure><img src="img/teaser.png" width="2088" height="571" alt="Classify-first versus LevelHead on a page turned 152 degrees"><figcaption>Classified first, a tilted page stays upside down and OCR reads gibberish. Levelled first, it comes out upright, for every backbone (right).</figcaption></figure>
       <p class="tldr"><b>TL;DR</b> Pipelines pick a page's quarter turn first and remove its tilt second, so the classifier sees pages unlike any it was trained on. LevelHead swaps the order and votes over the four quarter turns of the level page. Nothing is trained.</p>
+    </section>
+
+    <section>
+      <h2>The film</h2>
+      <figure id="film"><video src="levelhead-film.mp4" poster="img/film-poster.jpg" width="1920" height="1080" controls preload="none" playsinline></video><figcaption>99 seconds with sound: why classify-first fails on tilted pages, the three steps, and both test scores, angle accuracy and OCR edit distance.</figcaption></figure>
     </section>
 
     <section>
