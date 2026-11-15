@@ -6,3 +6,7 @@ data/
 *.jsonl
 .DS_Store
 !experiments/labels/*.jsonl
+!film/data/
+film/node_modules/
+film/out/
+film/audio/sfx.wav

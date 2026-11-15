@@ -1,0 +1,1109 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LevelHead film</title>
+<style>
+@font-face { font-family: Geist; src: url(node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2) format("woff2"); font-weight: 100 900; }
+@font-face { font-family: GeistMono; src: url(node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2) format("woff2"); font-weight: 100 900; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #F4F7FB; }
+body { font-family: Geist, sans-serif; color: #14202E; -webkit-font-smoothing: antialiased; font-feature-settings: "tnum" 1; }
+#stage { position: absolute; inset: 0; overflow: hidden; }
+.layer { position: absolute; inset: 0; }
+.abs { position: absolute; }
+.card { position: absolute; background: #FFFFFF; border: 1px solid #E1E7EF; border-radius: 22px; box-shadow: 0 1px 2px rgba(20,32,46,.04), 0 18px 40px -24px rgba(20,32,46,.22); }
+.stage { position: absolute; border-radius: 28px; background-color: #E7EDF5; background-image: radial-gradient(rgba(31,95,173,.11) 1.1px, transparent 1.3px); background-size: 24px 24px;
+  box-shadow: inset 0 0 0 1px rgba(20,32,46,.05), inset 0 2px 6px rgba(20,32,46,.04); }
+.chip { display: inline-flex; align-items: center; gap: 10px; font-family: GeistMono; font-size: 14px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; color: #1F5FAD;
+  background: #E3ECF8; padding: 7px 14px 7px 12px; border-radius: 999px; white-space: nowrap; }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #1F5FAD; }
+.title { font-weight: 650; font-size: 64px; letter-spacing: -0.035em; line-height: 1.02; white-space: nowrap; color: #14202E; }
+.sub { font-size: 24px; color: #5E6B7C; line-height: 1.35; white-space: nowrap; letter-spacing: -0.005em; }
+.mono { font-family: GeistMono; }
+.label { font-family: GeistMono; font-size: 13px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: #6F7D8F; white-space: nowrap; }
+.page { position: absolute; left: 0; top: 0; transform-origin: 50% 50%; background: #fff; border-radius: 3px;
+  box-shadow: 0 0 0 1px rgba(20,32,46,.10), 0 2px 4px rgba(20,32,46,.06), 0 32px 64px -24px rgba(20,32,46,.40); }
+.page img { display: block; width: 100%; height: 100%; border-radius: 3px; }
+.module { position: absolute; display: flex; align-items: center; gap: 16px; padding: 0 22px 0 18px; background: #fff; border: 1px solid #DCE3EC; border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(20,32,46,.05), 0 16px 32px -20px rgba(20,32,46,.28); }
+.tile { width: 54px; height: 54px; border-radius: 15px; display: flex; align-items: center; justify-content: center; flex: none; }
+.mtitle { font-size: 24px; font-weight: 640; letter-spacing: -0.015em; color: #14202E; }
+.msub { font-family: GeistMono; font-size: 12.5px; letter-spacing: .1em; text-transform: uppercase; color: #7A8797; margin-top: 5px; }
+.pill { position: absolute; font-family: GeistMono; font-size: 14px; font-weight: 500; padding: 6px 12px; border-radius: 999px; white-space: nowrap; }
+.badge { position: absolute; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700; color: #fff;
+  box-shadow: 0 0 0 5px rgba(255,255,255,.9), 0 10px 24px -8px rgba(20,32,46,.4); }
+.word { display: inline-block; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script type="module">
+// Every frame is a pure function of time: render.mjs calls seek(t) and screenshots.
+// Nothing may carry state between frames, because workers render separate time ranges.
+const W = 1920, H = 1080;
+const D = await (await fetch('data/scene.json')).json();
+const TL = await (await fetch('data/timeline.json')).json();
+
+// ---------- motion ----------
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const E = { out: t => 1 - Math.pow(1 - t, 3), inOut: t => (t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2), in: t => t * t * t, quint: t => 1 - Math.pow(1 - t, 5) };
+const P = (t, t0, d, e = E.out) => e(clamp((t - t0) / d));
+function spring(t, k = 180, c = 19) {
+  if (t <= 0) return 0;
+  const w0 = Math.sqrt(k), z = c / (2 * Math.sqrt(k));
+  if (z < 1) { const wd = w0 * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t)); }
+  return 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+}
+const soft = (t, t0) => spring(t - t0, 120, 20);
+const pop = (t, t0) => spring(t - t0, 260, 15);
+const swing = (t, t0) => spring(t - t0, 90, 11);          // a page settling after a turn: one soft overshoot
+const bell = (t, t0, d) => { const k = (t - t0) / d; return k > 0 && k < 1 ? Math.sin(Math.PI * k) : 0; };
+const rnd = i => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+const stage = document.getElementById('stage');
+function el(parent, tag, cls = '', style = {}, html = '') {
+  const e = document.createElement(tag); if (cls) e.className = cls; Object.assign(e.style, style); if (html) e.innerHTML = html; parent.appendChild(e); return e;
+}
+function show(e, o, transform) { e.style.opacity = o; e.style.visibility = o <= 0.001 ? 'hidden' : 'visible'; if (transform !== undefined) e.style.transform = transform; }
+const rise = (t, t0, px = 24) => `translateY(${(1 - soft(t, t0)) * px}px)`;
+const slideIn = (t, t0, px = 60) => `translateX(${(1 - soft(t, t0)) * px}px)`;
+const typed = (s, t, t0, cps = 55) => s.slice(0, Math.max(0, Math.floor((t - t0) * cps)));
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+const linear = x => x;
+
+// ---------- palette: the paper's ink, slate and one blue ----------
+const ACC = '#1F5FAD', ACC2 = '#9DB9DE', ACCBG = '#E3ECF8', NEU = '#B8C2CC', INK = '#14202E', MUTE = '#5E6B7C', FAINT = '#8A96A6', LINE = '#E1E7EF';
+const GREEN = '#2E9E5B', RED = '#D64545', TILT = '#6E9BD3';
+
+// ---------- timeline ----------
+const ORDER = Object.keys(TL).filter(k => typeof TL[k] === 'number');
+const SC = {}; let acc = 0;
+for (const name of ORDER) { SC[name] = { start: acc, dur: TL[name] }; acc += TL[name]; }
+window.TOTAL = acc;
+const beat = (scene, name, fallback = 0) => (TL.beats[scene] && TL.beats[scene][name] != null ? TL.beats[scene][name] : fallback);
+const L = (name, t) => t - SC[name].start;
+const live = (name, t) => t >= SC[name].start - .001 && t <= SC[name].start + SC[name].dur;
+const fadeOut = (lt, d, len = .45) => 1 - P(lt, d - len, len - .05, E.inOut);
+
+// a header whose title slides up out of a mask
+function header(parent, chip, title, sub) {
+  const g = el(parent, 'div', 'abs', { left: '120px', top: '78px' });
+  const c = el(g, 'div', 'chip', {}, chip);
+  const mask = el(g, 'div', '', { overflow: 'hidden', marginTop: '18px', paddingBottom: '8px' }), ti = el(mask, 'div', 'title', {}, title);
+  const su = sub ? el(g, 'div', 'sub', { marginTop: '8px' }, sub) : null;
+  return (lt, d) => {
+    const out = fadeOut(lt, d, .4);
+    show(c, P(lt, 0, .3) * out, `translateX(${(1 - soft(lt, 0)) * -18}px)`);
+    show(ti, out, `translateY(${(1 - E.quint(P(lt, .06, .7, linear))) * 110}%)`);
+    if (su) show(su, P(lt, .3, .45) * out, rise(lt, .3, 12));
+  };
+}
+const ICON = {
+  turn: '<path d="M19 12a7 7 0 1 1-2.05-4.95"/><path d="M19 4.5v4h-4"/>',
+  level: '<path d="M4.5 15.5 19.5 8"/><path d="M4 19.5h16"/>',
+  layers: '<path d="m12 4 8 4.5-8 4.5-8-4.5z"/><path d="m4 13 8 4.5 8-4.5"/>',
+};
+const svg = (k, s = 26) => `<svg viewBox="0 0 24 24" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[k]}</svg>`;
+function moduleCard(parent, x, y, w, h, icon, title, sub) {
+  const e = el(parent, 'div', 'module', { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+  const tile = el(e, 'div', 'tile', { background: '#EEF2F7', color: '#475569' }, svg(icon));
+  const txt = el(e, 'div'); el(txt, 'div', 'mtitle', {}, title); el(txt, 'div', 'msub', {}, sub);
+  return { e, tile };
+}
+const stagePanel = (parent, x, y, w, h) => el(parent, 'div', 'stage', { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' });
+
+// ---------- background: soft canvas and a protractor dial that turns a quarter at every scene change ----------
+const bgc = el(stage, 'canvas', '', { position: 'absolute', left: '0', top: '0' }); bgc.width = W; bgc.height = H;
+const bg = bgc.getContext('2d');
+function dial(ctx, rot, ink, blue) {
+  const cx = 960, cy = 580, R = 660;
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot);
+  ctx.strokeStyle = ink(.08); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(0, 0, R, 0, 7); ctx.stroke();
+  ctx.strokeStyle = ink(.045); ctx.beginPath(); ctx.arc(0, 0, R - 74, 0, 7); ctx.stroke();
+  for (let a = 0; a < 360; a += 5) {
+    const q = a % 90 === 0, m = a % 15 === 0, len = q ? 36 : m ? 18 : 9, th = a * Math.PI / 180;
+    ctx.strokeStyle = q ? blue(.28) : ink(m ? .1 : .055); ctx.lineWidth = q ? 2.2 : 1;
+    ctx.beginPath(); ctx.moveTo(Math.sin(th) * R, -Math.cos(th) * R); ctx.lineTo(Math.sin(th) * (R - len), -Math.cos(th) * (R - len)); ctx.stroke();
+  }
+  ctx.fillStyle = blue(.34); ctx.font = '500 15px GeistMono'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  [0, 90, 180, 270].forEach(a => { const th = a * Math.PI / 180; ctx.fillText(a + '°', Math.sin(th) * (R - 58), -Math.cos(th) * (R - 58)); });
+  ctx.restore();
+}
+// soft-focus paper drifts far behind every light scene, nudged by each scene change: white sheets, faint text lines, a cool shadow
+function paperSprite(w, h, blur, seed) {
+  const pad = 70, c = document.createElement('canvas'); c.width = w + 2 * pad; c.height = h + 2 * pad;
+  const x = c.getContext('2d'); x.filter = `blur(${blur}px)`;
+  x.shadowColor = 'rgba(31,72,130,.16)'; x.shadowBlur = 36; x.shadowOffsetY = 18; x.fillStyle = '#FFFFFF';
+  x.beginPath(); x.roundRect(pad, pad, w, h, 6); x.fill(); x.shadowColor = 'transparent';
+  x.fillStyle = '#E2E8F0';
+  for (let i = 0, y = pad + h * .12; y < pad + h * .88; i++, y += h * .075) x.fillRect(pad + w * .12, y, w * (i % 5 === 4 ? .45 : .76 - rnd(seed + i) * .12), h * .022);
+  return c;
+}
+const bokehSprites = [[210, 290, 4], [290, 210, 5], [200, 280, 8], [270, 200, 10]].map(([w, h, b], i) => paperSprite(w, h, b, i * 40));
+const BOKEH = [...Array(12)].map((_, i) => ({ c: bokehSprites[i % bokehSprites.length], x: (i + rnd(i * 5 + 1) * .7) / 12 * (W + 400), y: 60 + rnd(i * 5 + 2) * (H - 120),
+  rot: rnd(i * 5 + 3) * 360, depth: .35 + rnd(i * 5 + 4) * .65, a: .32 + rnd(i * 5 + 5) * .26 }));
+function drawBokeh(t, turns) {
+  BOKEH.forEach((b, i) => {
+    const span = W + 400, px = ((b.x + turns * 170 * b.depth + t * 10 * b.depth) % span + span) % span - 200, py = b.y + Math.sin(t * .3 + i) * 16 * b.depth;
+    const s = .7 + b.depth * .7;
+    bg.save(); bg.globalAlpha = b.a; bg.translate(px, py); bg.rotate((b.rot + t * 3.5 * (i % 2 ? 1 : -1) + turns * 14 * b.depth) * Math.PI / 180); bg.scale(s, s);
+    bg.drawImage(b.c, -b.c.width / 2, -b.c.height / 2); bg.restore();
+  });
+}
+// the dark cold open opens onto the light film through an iris centred on the hero page
+const IRIS_MAX = 2400, IRIS_C = [640, 590];
+const IRIS_AT = () => SC.fail.start - .3;   // opens just before the cut, so the next scene builds on light
+const irisR = t => (t < IRIS_AT() ? 0 : IRIS_MAX * E.inOut(P(t, IRIS_AT(), .95, linear)));
+const nightC = document.createElement('canvas'); nightC.width = W; nightC.height = H;
+const ng = nightC.getContext('2d');
+function drawBackground(t) {
+  let turns = 0; ORDER.slice(1).forEach(n => { turns += spring(t - SC[n].start, 70, 13); });
+  const rot = (turns * 90 + t * 1.2) * Math.PI / 180, r = irisR(t);
+  // light studio backdrop: a key light that drifts slowly, faint pages far behind, the dial, a cool falloff at the edges
+  bg.fillStyle = '#EAF0F7'; bg.fillRect(0, 0, W, H);
+  const kx = 960 + Math.sin(t * .13) * 240, ky = 470 + Math.cos(t * .1) * 80;
+  const key = bg.createRadialGradient(kx, ky, 0, kx, ky, 1350); key.addColorStop(0, 'rgba(255,255,255,1)'); key.addColorStop(.5, 'rgba(255,255,255,.62)'); key.addColorStop(1, 'rgba(255,255,255,0)');
+  bg.fillStyle = key; bg.fillRect(0, 0, W, H);
+  drawBokeh(t, turns);
+  dial(bg, rot, a => `rgba(20,32,46,${a})`, a => `rgba(31,95,173,${a})`);
+  const fall = bg.createRadialGradient(960, 540, 620, 960, 540, 1250); fall.addColorStop(0, 'rgba(24,52,92,0)'); fall.addColorStop(1, 'rgba(24,52,92,.09)');
+  bg.fillStyle = fall; bg.fillRect(0, 0, W, H);
+  if (r >= IRIS_MAX) return;
+  // the night: dark ink with the same dial in faint white
+  const night = ng.createRadialGradient(960, 540, 0, 960, 540, 1150); night.addColorStop(0, '#16263B'); night.addColorStop(1, '#060A10');
+  ng.globalCompositeOperation = 'source-over'; ng.fillStyle = night; ng.fillRect(0, 0, W, H);
+  dial(ng, rot, a => `rgba(255,255,255,${a * .8})`, a => `rgba(157,185,222,${a * 1.2})`);
+  if (r > 0) {
+    const hole = ng.createRadialGradient(...IRIS_C, Math.max(0, r - 160), ...IRIS_C, r); hole.addColorStop(0, 'rgba(0,0,0,1)'); hole.addColorStop(1, 'rgba(0,0,0,0)');
+    ng.globalCompositeOperation = 'destination-out'; ng.fillStyle = hole; ng.fillRect(0, 0, W, H); ng.globalCompositeOperation = 'source-over';
+  }
+  bg.drawImage(nightC, 0, 0);
+}
+
+// ---------- film grain: six noise tiles, swapped at 24 fps; soft-light, so it also dithers gradient banding ----------
+const grainC = el(stage, 'canvas', '', { position: 'absolute', left: '0', top: '0', pointerEvents: 'none', mixBlendMode: 'soft-light' }); grainC.width = W; grainC.height = H;
+const grainG = grainC.getContext('2d');
+const GRAIN = [...Array(6)].map((_, k) => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d'), im = x.createImageData(256, 256);
+  for (let i = 0; i < 65536; i++) { const v = 128 + (rnd(k * 65536 + i + .5) - .5) * 220; im.data.set([v, v, v, 255], i * 4); }
+  x.putImageData(im, 0, 0); return grainG.createPattern(c, 'repeat');
+});
+function drawGrain(t) {
+  const f = Math.floor(t * 24);
+  grainG.save(); grainG.translate(-Math.floor(rnd(f) * 256), -Math.floor(rnd(f + 7) * 256)); grainG.fillStyle = GRAIN[f % 6]; grainG.fillRect(0, 0, W + 256, H + 256); grainG.restore();
+  grainC.style.opacity = irisR(t) >= IRIS_MAX ? .14 : .26;
+}
+
+// ---------- effects canvas (above every card) ----------
+const fx = el(stage, 'canvas', '', { position: 'absolute', left: '0', top: '0', pointerEvents: 'none' }); fx.width = W; fx.height = H;
+const g = fx.getContext('2d');
+const bez = (p0, c1, c2, p1, t) => [0, 1].map(i => (1 - t) ** 3 * p0[i] + 3 * (1 - t) ** 2 * t * c1[i] + 3 * (1 - t) * t * t * c2[i] + t ** 3 * p1[i]);
+// a connector: a smooth curve with horizontal tangents, a blue gradient, a filled head, and an optional light pulse travelling along it
+function flow(p0, p1, k, o = {}) {
+  const { a = 1, w = 3.5, head = true, pulse = -1, c0 = ACC2, c1 = ACC } = o;
+  if (k <= 0 || a <= 0) return;
+  const dx = (p1[0] - p0[0]) * .5, cA = [p0[0] + dx, p0[1]], cB = [p1[0] - dx, p1[1]];
+  const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), tEnd = k * (head ? 1 - 12 / Math.max(40, len) : 1);
+  g.save(); g.globalAlpha = a; g.lineCap = 'round'; g.lineWidth = w;
+  const gr = g.createLinearGradient(p0[0], p0[1], p1[0], p1[1]); gr.addColorStop(0, c0); gr.addColorStop(1, c1); g.strokeStyle = gr;
+  g.beginPath(); for (let i = 0; i <= 48; i++) { const q = bez(p0, cA, cB, p1, tEnd * i / 48); i ? g.lineTo(...q) : g.moveTo(...q); } g.stroke();
+  if (head && k > .96) {
+    const q = bez(p0, cA, cB, p1, 1), r = bez(p0, cA, cB, p1, .96), ang = Math.atan2(q[1] - r[1], q[0] - r[0]), s = 14 * clamp((k - .96) / .04);
+    g.fillStyle = c1; g.strokeStyle = c1; g.lineJoin = 'round'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[0] - s * Math.cos(ang - .48), q[1] - s * Math.sin(ang - .48)); g.lineTo(q[0] - s * Math.cos(ang + .48), q[1] - s * Math.sin(ang + .48)); g.closePath(); g.fill(); g.stroke();
+  }
+  if (pulse > 0 && pulse < 1) {
+    for (let j = 8; j >= 1; j--) { const q = bez(p0, cA, cB, p1, clamp(pulse - j * .025)); g.globalAlpha = a * (1 - j / 9) * .6; g.fillStyle = ACC; g.beginPath(); g.arc(q[0], q[1], w * .95 * (1 - j / 12), 0, 7); g.fill(); }
+    const q = bez(p0, cA, cB, p1, pulse); g.globalAlpha = a; g.shadowColor = ACC; g.shadowBlur = 16; g.fillStyle = '#fff'; g.beginPath(); g.arc(q[0], q[1], 6.5, 0, 7); g.fill();
+    g.shadowBlur = 0; g.strokeStyle = ACC; g.lineWidth = 3; g.stroke();
+  }
+  g.restore();
+}
+function dot(x, y, r, col, a = 1) { if (a <= 0) return; g.save(); g.globalAlpha = a; g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.restore(); }
+function ring(x, y, r, col, a, w = 2) { if (a <= 0.001) return; g.save(); g.globalAlpha = a; g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke(); g.restore(); }
+// bar chart of the four answers over the clockwise turns 0/90/180/270; `shift` rolls bars left with wrap-around
+function bars(x, y, w, h, vals, a = 1, k = 1, o = {}) {
+  const { col = ACC, hi = -1, shift = 0, labels = true, values = false } = o;
+  if (a <= 0) return;
+  g.save(); g.globalAlpha = a;
+  const step = w / 4, bw = step * .58;
+  g.fillStyle = LINE; g.fillRect(x, y + h, w, 1.5);
+  for (let i = 0; i < 4; i++) {
+    const raw = i - shift, pos = ((raw % 4) + 4) % 4, frac = raw < 0 ? clamp(-raw) : 0;
+    const bx = x + pos * step + (step - bw) / 2, v = vals[i] * k, bh = Math.max(2.5, v * h);
+    g.globalAlpha = a * (frac > 0 && frac < 1 ? .35 + .65 * Math.abs(frac - .5) * 2 : 1);
+    const gr = g.createLinearGradient(0, y + h - bh, 0, y + h); gr.addColorStop(0, i === hi ? RED : col); gr.addColorStop(1, i === hi ? '#E87C7C' : hexA(col, .75));
+    g.fillStyle = gr; g.beginPath(); g.roundRect(bx, y + h - bh, bw, bh, [5, 5, 2, 2]); g.fill();
+    if (values && v > .3) { g.globalAlpha = a; g.fillStyle = i === hi ? RED : col; g.font = '600 13.5px GeistMono'; g.textAlign = 'center'; g.fillText(vals[i].toFixed(2).replace(/^0/, ''), bx + bw / 2, y + h - bh - 8); }
+  }
+  g.globalAlpha = a;
+  if (labels) { g.fillStyle = FAINT; g.font = '500 12.5px GeistMono'; g.textAlign = 'center'; for (let i = 0; i < 4; i++) g.fillText(['0°', '90°', '180°', '270°'][i], x + i * step + step / 2, y + h + 19); }
+  g.restore();
+}
+
+// ---------- pages: real images, turned live by CSS so every rotation is exact ----------
+const pageLayer = el(stage, 'div', 'layer');
+const front = el(stage, 'div', 'layer');   // cards and text that sit above the pages
+function pageEl(src, w, h, parent = pageLayer) {
+  const e = el(parent, 'div', 'page', { width: w + 'px', height: h + 'px' }); el(e, 'img').src = src;
+  return { e, w, h, set(cx, cy, size, rot, o = 1) { const s = size / Math.max(w, h); show(e, o, `translate(${cx - w / 2}px, ${cy - h / 2}px) rotate(${rot}deg) scale(${s})`); } };
+}
+const TZ = D.teaser, MT = D.method, HN = D.hann;
+
+// =====================================================================
+// OPEN - cold open: the camera flies through a tunnel of real pages turned every way,
+// brakes hard, and one page slams to a stop at 152 deg. Which way is up?
+// =====================================================================
+const open = el(stage, 'div', 'layer', { isolation: 'isolate' });
+const openFront = el(front, 'div', 'layer');
+const TUN_SRC = [['assets/method.jpg', MT.size], ['assets/photo.jpg', HN.size],
+  ...D.gallery.flatMap(gi => ['in', 'cf', 'lh'].map(k => [`assets/${gi.stem}_${k}.jpg`, gi[k]]))];
+// camera: a long dolly that brakes into the hero page; pages are projected by hand (size and offset scale with FOCAL / depth)
+const FOCAL = 900, NEAR = 110, LOCK = 2.75, ZT = 6200, HERO_D = 1000;
+const camZ = lt => ZT * (1 - Math.pow(1 - clamp((lt - .2) / (LOCK - .2)), 3)) + 26 * Math.max(0, lt - LOCK);
+const camV = lt => (lt < .2 || lt > LOCK ? 0 : 3 * ZT / (LOCK - .2) * Math.pow(1 - (lt - .2) / (LOCK - .2), 2));
+// 48 pages fly past at an even rate until the stop; 12 stay far behind the hero as soft, out-of-focus depth
+const PASS = 48;
+const tunnel = [...Array(PASS + 12)].map((_, i) => {
+  const [src, s] = TUN_SRC[i % TUN_SRC.length], passes = i < PASS, phi = (i * 2.39996 + rnd(i * 7 + 1) * .6), r = (passes ? 300 : 700) + rnd(i * 7 + 2) * 700;
+  const z = passes ? camZ(lerp(.3, LOCK - .45, (i + rnd(i * 7 + 3) * .8) / PASS)) + NEAR : ZT + 1900 + (i - PASS) / 12 * 3600;
+  return { p: pageEl(src, s[0], s[1], open), x: Math.cos(phi) * r * 1.5, y: Math.sin(phi) * r, z, rot: rnd(i * 7 + 4) * 360, spin: (rnd(i * 7 + 5) - .5) * 300, size: 330 + rnd(i * 7 + 6) * 170 };
+});
+const qWrap = el(openFront, 'div', 'abs', { left: '1090px', top: '400px' });
+const qWords = [['Which', 'way'], ['is', 'up?']].map(words => {
+  const line = el(qWrap, 'div', '', { paddingBottom: '10px', whiteSpace: 'nowrap', fontSize: '118px', fontWeight: 690, letterSpacing: '-0.05em', lineHeight: .98 });
+  return words.map((w, i) => el(line, 'span', 'word', { marginRight: i ? '0' : '26px', color: w === 'up?' ? '#7FB0EE' : '#F4F7FB', transformOrigin: '50% 60%' }, w));
+}).flat();
+const qSub = el(openFront, 'div', 'abs mono', { left: '1096px', top: '676px', fontSize: '17px', color: 'rgba(244,247,251,.6)', letterSpacing: '.03em' }, 'a real OmniDocBench page, turned 152°');
+const compass = el(openFront, 'div', 'abs', { left: '1094px', top: '256px', width: '108px', height: '108px', borderRadius: '50%', background: '#111C2B', border: '1.5px solid rgba(255,255,255,.14)', boxShadow: '0 14px 30px -18px rgba(0,0,0,.6)' });
+['N', 'E', 'S', 'W'].forEach((c, i) => el(compass, 'div', 'abs mono', { left: '50%', top: '50%', fontSize: '11px', color: 'rgba(255,255,255,.45)', transform: `translate(-50%, -50%) rotate(${i * 90}deg) translateY(-40px) rotate(${-i * 90}deg)` }, c));
+const needle = el(compass, 'div', 'abs', { left: '50%', top: '50%', width: '12px', height: '76px', marginLeft: '-6px', marginTop: '-38px',
+  background: 'linear-gradient(180deg, #7FB0EE 0 50%, #3A4A5E 50% 100%)', clipPath: 'polygon(50% 0, 100% 50%, 50% 100%, 0 50%)' });
+el(compass, 'div', 'abs', { left: '50%', top: '50%', width: '12px', height: '12px', margin: '-6px 0 0 -6px', borderRadius: '50%', background: '#111C2B', border: '2px solid #7FB0EE' });
+// letterbox bars: the frame opens from black to 2.39:1, then to full frame on the question
+const letterbox = el(stage, 'div', 'layer', { pointerEvents: 'none' });
+const barTop = el(letterbox, 'div', 'abs', { left: '0', top: '0', width: W + 'px', background: '#070B10' });
+const barBot = el(letterbox, 'div', 'abs', { left: '0', bottom: '0', width: W + 'px', background: '#070B10', overflow: 'hidden' });
+const barCap = el(barBot, 'div', 'abs mono', { left: '120px', right: '120px', top: '52px', display: 'flex', justifyContent: 'space-between', fontSize: '15px', letterSpacing: '.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,.55)' },
+  '<span>OmniDocBench · page 1617</span><span>turned 152° · which way is up?</span>');
+const teaser = pageEl('assets/teaser.jpg', ...TZ.size);
+const OPEN_C = [640, 590];
+const SCAN_STEP = .24;
+const openTimes = () => ({ q: beat('open', 'question', 5.8) });
+const wordAt = (q, i) => q - .06 + i * .17;
+function drawOpen(t) {
+  const lt = L('open', t), d = SC.open.dur;
+  if (!live('open', t)) { show(open, 0); show(openFront, 0); show(letterbox, 0); return; }
+  show(open, 1); show(openFront, 1); show(letterbox, 1);
+  const { q } = openTimes(), out = fadeOut(lt, d, .35), u = lt - LOCK;
+  const roll = -24 * (1 - E.inOut(P(lt, .2, LOCK - .2, linear)));   // the camera rolls level as it brakes
+  const shk = u > 0 ? 18 * Math.exp(-u * 8) : 0, sx = shk * Math.sin(u * 63), sy = shk * Math.cos(u * 51);
+  const cz = camZ(lt), vn = camV(lt) / camV(.2), clear = 1 - P(lt, q - .1, .7);
+  const cr = Math.cos(roll * Math.PI / 180), sr = Math.sin(roll * Math.PI / 180);
+  // speed streaks on the background while the camera is fast
+  if (vn > .02) {
+    bg.save(); bg.lineCap = 'round';
+    for (let i = 0; i < 80; i++) {
+      const a = rnd(i * 3 + 1) * Math.PI * 2 + roll * Math.PI / 180, pr = (rnd(i * 3 + 2) + cz / 2400 * (.6 + rnd(i * 3 + 3) * .8)) % 1;
+      const r0 = 140 + pr * pr * 1250, len = vn * 300 * (.35 + pr);
+      bg.strokeStyle = `rgba(190,212,240,${vn * .32 * pr})`; bg.lineWidth = 1 + pr * 2;
+      bg.beginPath(); bg.moveTo(960 + Math.cos(a) * r0, 540 + Math.sin(a) * r0); bg.lineTo(960 + Math.cos(a) * (r0 + len), 540 + Math.sin(a) * (r0 + len)); bg.stroke();
+    }
+    bg.restore();
+  }
+  // the tunnel: depth sets size, offset, fog and blur; after the stop, focus pulls to the hero and the rest melts into bokeh
+  const focusPull = P(lt, LOCK - .05, .5);
+  tunnel.forEach(pg => {
+    const dz = pg.z - cz;
+    if (dz < NEAR) { show(pg.p.e, 0); return; }
+    const s = FOCAL / dz, x = pg.x * s, y = pg.y * s;
+    const fog = clamp((7400 - dz) / 1800) * clamp((dz - NEAR) / 140);
+    const blur = lerp(Math.min(9, dz < 700 ? (700 - dz) / 60 : (dz - 1400) / 900), clamp((dz - HERO_D) / 450, 0, 8), focusPull);
+    pg.p.set(960 + sx + x * cr - y * sr, 540 + sy + x * sr + y * cr, pg.size * s, pg.rot + pg.spin * cz / ZT + roll, fog * lerp(1, .5, focusPull) * clear * out);
+    pg.p.e.style.zIndex = Math.round(100000 - dz); pg.p.e.style.filter = blur > .3 ? `blur(${blur.toFixed(1)}px)` : '';
+  });
+  // the hero: far away and spinning, it rushes in and slams to a stop with a bounce
+  const hx = clamp((lt - .3) / (LOCK - .3)), hd = lt < LOCK ? lerp(9200, HERO_D, E.in(hx)) : HERO_D;
+  const bounce = u > 0 ? 1 + .07 * Math.exp(-u * 8) * Math.sin(u * 24) : 1, push = 1 + .08 * P(lt, LOCK, q - LOCK, E.inOut);
+  const mv = P(lt, q - .75, .95, E.inOut);
+  teaser.set(lerp(960 + sx, OPEN_C[0], mv), lerp(540 + sy, OPEN_C[1], mv), lerp(600 * FOCAL / hd * bounce * push, 700, mv),
+    TZ.turned - 1080 * Math.pow(1 - hx, 2) + roll, P(lt, .45, .3));
+  // impact: a flash, a shockwave, then a scanning ring that cannot pick a side
+  if (u > 0) {
+    g.save(); g.globalAlpha = .55 * Math.exp(-u * 9); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.restore();
+    ring(960 + sx, 540 + sy, 300 + E.out(P(u, 0, .9, linear)) * 820, '#9DB9DE', .6 * (1 - P(u, 0, .9)), 3);
+    ring(960 + sx, 540 + sy, 300 + E.out(P(u, .08, 1.1, linear)) * 600, '#5E8FCB', .5 * (1 - P(u, .08, 1.1)), 2);
+  }
+  const ra = P(lt, LOCK + .25, .35) * (1 - P(lt, q - .85, .3));
+  if (ra > 0) {
+    const R = 370 * push, step = Math.floor((lt - LOCK - .35) / SCAN_STEP);
+    g.save(); g.globalAlpha = ra; g.strokeStyle = 'rgba(255,255,255,.22)'; g.lineWidth = 1.5; g.setLineDash([3, 9]); g.beginPath(); g.arc(960, 540, R, 0, 7); g.stroke(); g.setLineDash([]);
+    for (let k = 0; k < 4; k++) {
+      const th = (TZ.turned + 90 * k) * Math.PI / 180, on = step >= 0 && ((step % 4) + 4) % 4 === k, sz = on ? 20 : 12;
+      const px = 960 + Math.sin(th) * R, py = 540 - Math.cos(th) * R;
+      g.save(); g.translate(px, py); g.rotate(th); g.fillStyle = on ? '#7FB0EE' : 'rgba(255,255,255,.28)';
+      g.beginPath(); g.moveTo(0, -sz); g.lineTo(sz * .8, sz * .4); g.lineTo(-sz * .8, sz * .4); g.closePath(); g.fill(); g.restore();
+    }
+    g.restore();
+  }
+  // a vignette for the cold open, lifting as the frame opens
+  const vg = .55 * out;
+  if (vg > 0) { const gr = g.createRadialGradient(960, 540, 420, 960, 540, 1180); gr.addColorStop(0, 'rgba(7,11,16,0)'); gr.addColorStop(1, `rgba(7,11,16,${vg})`); g.fillStyle = gr; g.fillRect(0, 0, W, H); }
+  // letterbox: black, a slit, 2.39:1, then gone on the question
+  const hb = lt < .3 ? 540 : lerp(lerp(540, 132, E.inOut(P(lt, .3, .8, linear))), 0, E.inOut(P(lt, q - .05, .65, linear)));
+  barTop.style.height = hb + 'px'; barBot.style.height = hb + 'px';
+  show(barCap, P(lt, LOCK + .35, .4) * (hb > 100 ? 1 : 0), `translateY(${(1 - soft(lt, LOCK + .35)) * 14}px)`);
+  // which way is up: each word slams in, out of focus and oversized
+  qWords.forEach((w, i) => {
+    const t0 = wordAt(q, i), k = E.quint(P(lt, t0, .2, linear)), big = i === 3 ? 2.6 : 1.8;
+    w.style.filter = k < 1 ? `blur(${(14 * (1 - k)).toFixed(1)}px)` : '';
+    show(w, P(lt, t0, .06) * out, `scale(${lerp(big, 1, k)})`);
+  });
+  show(qSub, P(lt, q + .9, .4) * out, rise(lt, q + .9, 10));
+  show(compass, P(lt, q + .8, .4) * out, `scale(${.7 + .3 * pop(lt, q + .8)})`);
+  needle.style.transform = `rotate(${lt * 520 * (1 - P(lt, q + .8, 2.2)) + 38 * Math.sin(lt * 7.5) * P(lt, q + .8, 1)}deg)`;
+}
+
+// =====================================================================
+// FAIL - classify first, then deskew: the page ends perfectly level, upside down
+// =====================================================================
+const fail = el(stage, 'div', 'layer');
+const flHead = header(fail, 'The usual order', 'Classify first, then deskew', 'The classifier sees a tilted page it was never trained on');
+const stA = stagePanel(fail, 110, 340, 430, 410), stB = stagePanel(fail, 1400, 340, 410, 410);
+const flFront = el(front, 'div', 'layer');
+const cls = moduleCard(flFront, 610, 485, 310, 120, 'turn', 'Classifier', 'PP-LCNet · frozen');
+const dsk = moduleCard(flFront, 1010, 485, 310, 120, 'level', 'Deskew', 'jdeskew');
+cls.e.style.overflow = 'hidden';
+const scanBar = el(cls.e, 'div', 'abs', { top: '0', bottom: '0', width: '70px', background: `linear-gradient(90deg, transparent, ${hexA(ACC, .16)}, transparent)`, left: '-70px' });
+const offPill = el(flFront, 'div', 'pill', { left: '908px', top: '428px', background: '#FDECEC', color: RED, border: `1px solid ${hexA(RED, .35)}`, fontSize: '15px' }, '180° off');
+const trainCard = el(flFront, 'div', 'card', { left: '600px', top: '650px', width: '330px', height: '196px' });
+el(trainCard, 'div', 'label', { position: 'absolute', left: '22px', top: '20px' }, 'Trained on');
+el(trainCard, 'div', 'abs', { left: '22px', top: '150px', fontSize: '17px', color: MUTE }, 'level pages, never tilted');
+const trainThumbs = [0, 90, 180, 270].map((r, i) => {
+  const box = el(trainCard, 'div', 'abs', { left: (22 + i * 74) + 'px', top: '52px', width: '66px', height: '86px', display: 'flex', alignItems: 'center', justifyContent: 'center' });
+  const p = el(box, 'div', '', { width: '51px', height: '72px', transform: `rotate(${r}deg)`, boxShadow: '0 0 0 1px rgba(20,32,46,.12), 0 6px 12px -6px rgba(20,32,46,.3)', borderRadius: '2px', overflow: 'hidden', background: '#fff' });
+  el(p, 'img', '', { width: '100%', height: '100%', display: 'block' }).src = 'assets/method.jpg';
+  return box;
+});
+const ocrCard = el(flFront, 'div', 'card', { left: '1400px', top: '776px', width: '410px', height: '160px' });
+el(ocrCard, 'div', 'label', { position: 'absolute', left: '22px', top: '20px' }, 'docTR reads');
+el(ocrCard, 'div', 'abs mono', { right: '20px', top: '17px', fontSize: '13px', color: RED, fontWeight: 600, background: '#FDECEC', padding: '3px 9px', borderRadius: '999px' }, 'edit distance 0.876');
+const ocrTxt = el(ocrCard, 'div', 'abs mono', { left: '22px', top: '56px', width: '366px', height: '84px', fontSize: '18px', color: RED, lineHeight: 1.4, overflow: 'hidden', wordBreak: 'break-all' });
+const failBadge = el(flFront, 'div', 'badge', { background: RED }, '✕');
+const failLab = el(flFront, 'div', 'abs', { left: '1400px', top: '700px', width: '410px', textAlign: 'center', fontSize: '18px', color: RED, fontWeight: 600 }, 'level, but upside down');
+const F_IN = [325, 545], F_OUT = [1605, 535];
+const out2 = pageEl('assets/teaser.jpg', ...TZ.size);
+function failTimes() { return { trained: beat('fail', 'trained', 3.7), guess: beat('fail', 'guess', 7.7), deskew: beat('fail', 'deskew', 9.3), upside: beat('fail', 'upside', 10.7) }; }
+function drawFail(t) {
+  const lt = L('fail', t), d = SC.fail.dur;
+  if (!live('fail', t)) { show(fail, 0); show(flFront, 0); return; }
+  show(fail, 1); show(flFront, 1);
+  flHead(lt, d);
+  const T = failTimes(), out = fadeOut(lt, d);
+  show(stA, P(lt, .1, .4) * out, rise(lt, .1, 18)); show(stB, P(lt, .9, .4) * out, rise(lt, .9, 18));
+  const shake = lt > T.guess ? Math.sin((lt - T.guess) * 38) * 9 * Math.exp(-(lt - T.guess) * 6) : 0;
+  show(cls.e, P(lt, .45, .35) * out, `translateX(${shake}px) scale(${.9 + .1 * pop(lt, .45)})`);
+  show(dsk.e, P(lt, .7, .35) * out, `scale(${.9 + .1 * pop(lt, .7)})`);
+  cls.tile.style.background = lt > T.guess ? '#FDECEC' : '#EEF2F7'; cls.tile.style.color = lt > T.guess ? RED : '#475569';
+  cls.e.style.borderColor = lt > T.guess ? hexA(RED, .55) : '#DCE3EC';
+  scanBar.style.transform = `translateX(${lerp(0, 450, P(lt, T.guess - .25, .55, E.inOut))}px)`;
+  const p1 = P(lt, T.guess - .75, .55, E.inOut), p2 = P(lt, T.deskew - .5, .45, E.inOut), p3 = P(lt, T.deskew - .05, .35, E.inOut);
+  flow([540, 545], [606, 545], P(lt, .9, .35), { a: out, pulse: p1 });
+  flow([920, 545], [1006, 545], P(lt, 1.15, .35), { a: out, pulse: p2 });
+  flow([1320, 545], [1396, 545], P(lt, 1.4, .35), { a: out, pulse: p3 });
+  show(offPill, P(lt, T.guess, .25) * out, `scale(${.7 + .3 * pop(lt, T.guess)})`);
+  show(trainCard, P(lt, T.trained, .4) * out, rise(lt, T.trained, 16));
+  trainThumbs.forEach((b, i) => show(b, P(lt, T.trained + .25 + i * .12, .25), `scale(${.6 + .4 * pop(lt, T.trained + .25 + i * .12)})`));
+  const k = P(lt, 0, .9, E.inOut);
+  teaser.set(lerp(OPEN_C[0], F_IN[0], k), lerp(OPEN_C[1], F_IN[1], k), lerp(700, 300, k), TZ.turned, out);
+  const outIn = P(lt, T.deskew + .15, .35), lev = swing(lt, T.deskew + .3);
+  // classify-first: the classifier's quarter turn is 0 (wrong); the deskewer removes the 27.5 deg tilt, 152 -> 179.5
+  if (outIn > 0) out2.set(F_OUT[0], F_OUT[1], 330, lerp(TZ.turned, TZ.turned - TZ.cf.undo + 360, lev), outIn * out);
+  const st = lt - (T.upside + .1);
+  show(failBadge, P(st, 0, .2) * out, `translate(1770px, 362px) scale(${.4 + .6 * pop(st, 0)})`);
+  show(failLab, P(st, .15, .3) * out, rise(st, .15, 8));
+  show(ocrCard, P(st, .25, .35) * out, rise(st, .25, 14));
+  ocrTxt.textContent = typed(TZ.cf.text + '…', st, .45, 95);
+}
+
+// =====================================================================
+// INSIGHT - any angle = a quarter turn + a tilt
+// =====================================================================
+const insight = el(stage, 'div', 'layer');
+const inHead = header(insight, 'The idea', 'Any angle is a quarter turn plus a tilt', 'The two parts show up in different evidence on the page');
+const inStage = stagePanel(insight, 110, 300, 900, 640);
+const inFront = el(front, 'div', 'layer');
+const eqCard = el(inFront, 'div', 'card', { left: '1060px', top: '300px', width: '740px', height: '176px' });
+el(eqCard, 'div', 'abs', { left: '40px', top: '28px', fontSize: '78px', fontWeight: 620, letterSpacing: '-0.03em', whiteSpace: 'nowrap', lineHeight: 1 },
+  'θ = <span id="eqk" style="color:#1F5FAD">90°·k</span> + <span id="eqs" style="color:#6E9BD3">s</span>');
+el(eqCard, 'div', 'abs mono', { left: '44px', top: '124px', fontSize: '17px', color: MUTE }, 'k ∈ {0, 1, 2, 3}  ·  −45° ≤ s < 45°');
+function evidenceCard(y, col, head, body, art) {
+  const c = el(inFront, 'div', 'card', { left: '1060px', top: y + 'px', width: '740px', height: '196px' });
+  el(c, 'div', 'label', { position: 'absolute', left: '32px', top: '28px', color: col }, head);
+  el(c, 'div', 'abs', { left: '32px', top: '64px', width: '500px', fontSize: '24px', lineHeight: 1.32, color: INK, letterSpacing: '-0.01em' }, body);
+  const a = el(c, 'div', 'abs', { right: '34px', top: '40px', width: '116px', height: '116px', borderRadius: '50%', border: `1.5px solid ${LINE}`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAFBFD' }, art);
+  return { c, a };
+}
+const evRows = evidenceCard(508, TILT, 'Rows of text → the tilt s', 'Rows look the same after a quarter turn, so a deskewer can read s without knowing k',
+  '<div style="width:62px;display:flex;flex-direction:column;gap:9px">' + [62, 62, 62, 40].map(w => `<div style="height:5px;width:${w}px;border-radius:3px;background:#6E9BD3"></div>`).join('') + '</div>');
+const evLetters = evidenceCard(736, ACC, 'Letter shapes → the turn k', 'Only the glyphs say which way is up: the job the classifier was trained for', '<div style="font-size:64px;font-weight:700;color:#1F5FAD">R</div>');
+const rowGlow = el(pageLayer, 'div', 'page', { width: MT.size[0] + 'px', height: MT.size[1] + 'px', background: 'transparent', boxShadow: 'none',
+  backgroundImage: `repeating-linear-gradient(180deg, transparent 0 36px, ${hexA(TILT, .22)} 36px 39px)`, opacity: 0 });
+const IN_C = [560, 620];
+const method = pageEl('assets/method.jpg', ...MT.size);
+let EQ_K = [1300, 360], EQ_S = [1500, 360];
+function drawInsight(t) {
+  const lt = L('insight', t), d = SC.insight.dur;
+  if (!live('insight', t)) { show(insight, 0); show(inFront, 0); return; }
+  show(insight, 1); show(inFront, 1);
+  inHead(lt, d);
+  const out = fadeOut(lt, d), split = beat('insight', 'split', 1.4), tilt = beat('insight', 'tilt', 3.0), rows = beat('insight', 'rows', 5.6), letters = beat('insight', 'letters', 7.6);
+  show(inStage, P(lt, .05, .4) * out, rise(lt, .05, 18));
+  show(eqCard, P(lt, split, .4) * out, slideIn(lt, split, 50));
+  show(evRows.c, P(lt, rows - .25, .4) * out, slideIn(lt, rows - .25, 50));
+  show(evLetters.c, P(lt, letters - .25, .4) * out, slideIn(lt, letters - .25, 50));
+  evRows.a.firstChild.style.transform = `rotate(${90 * swing(lt, rows + .5)}deg)`;
+  const gt = lt - letters, step = Math.floor(clamp(gt / .42, 0, 3.99));
+  evLetters.a.firstChild.style.transform = `rotate(${90 * step + 90 * swing(gt - step * .42, 0) * (gt > 0 ? 1 : 0)}deg)`;
+  // the dial around the page: 0 -> 90 (the quarter turn), then 90 -> 121 (the tilt)
+  const cx = IN_C[0], cy = IN_C[1], R = 290, a0 = -Math.PI / 2;
+  const kq = P(lt, split + .2, .9, E.inOut), ks = P(lt, tilt + .1, .6, E.inOut);
+  g.save(); g.globalAlpha = out * P(lt, split - .1, .3);
+  g.strokeStyle = 'rgba(20,32,46,.12)'; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+  for (let a = 0; a < 360; a += 15) { const th = a * Math.PI / 180 + a0, q = a % 90 === 0; g.strokeStyle = q ? ACC2 : 'rgba(20,32,46,.18)'; g.lineWidth = q ? 3 : 1.5;
+    g.beginPath(); g.moveTo(cx + Math.cos(th) * R, cy + Math.sin(th) * R); g.lineTo(cx + Math.cos(th) * (R - (q ? 18 : 9)), cy + Math.sin(th) * (R - (q ? 18 : 9))); g.stroke(); }
+  g.lineCap = 'round';
+  if (kq > 0) { g.strokeStyle = ACC; g.lineWidth = 12; g.beginPath(); g.arc(cx, cy, R, a0, a0 + kq * Math.PI / 2); g.stroke(); }
+  if (ks > 0) { g.strokeStyle = TILT; g.lineWidth = 12; g.beginPath(); g.arc(cx, cy, R, a0 + Math.PI / 2, a0 + Math.PI / 2 + ks * MT.skew * Math.PI / 180); g.stroke(); }
+  g.restore();
+  // leader lines from the equation's terms to their arcs
+  const km = [cx + Math.cos(a0 + Math.PI / 4) * R, cy + Math.sin(a0 + Math.PI / 4) * R], sm = [cx + Math.cos(a0 + Math.PI / 2 + .27) * R, cy + Math.sin(a0 + Math.PI / 2 + .27) * R];
+  // leaders leave the equation card's left edge at the height of each term
+  const kL = [1058, EQ_K[1] - 6], sL = [1058, EQ_K[1] + 26];
+  flow(kL, km, P(lt, split + 1.0, .6, E.inOut), { a: out * .9, w: 2.5, head: false, c0: ACC, c1: ACC });
+  flow(sL, sm, P(lt, tilt + .6, .6, E.inOut), { a: out * .9, w: 2.5, head: false, c0: TILT, c1: TILT });
+  dot(...kL, 5, ACC, out * P(lt, split + 1.0, .2)); dot(...sL, 5, TILT, out * P(lt, tilt + .6, .2));
+  dot(...km, 7, ACC, out * P(lt, split + 1.5, .2)); dot(...sm, 7, TILT, out * P(lt, tilt + 1.1, .2));
+  g.save(); g.font = '650 26px Geist'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (kq > .6) { g.fillStyle = ACC; g.globalAlpha = out * P(lt, split + .7, .3); g.fillText('90°', cx + Math.cos(a0 + Math.PI / 4) * (R - 54), cy + Math.sin(a0 + Math.PI / 4) * (R - 54)); }
+  if (ks > .6) { g.fillStyle = TILT; g.globalAlpha = out * P(lt, tilt + .5, .3); g.fillText('31°', cx + Math.cos(a0 + Math.PI / 2 + .27) * (R - 54), cy + Math.sin(a0 + Math.PI / 2 + .27) * (R - 54)); }
+  g.restore();
+  // the method page tumbles in to 121 deg; text rows glow when the voice names them
+  method.set(IN_C[0], IN_C[1], 470, lerp(121 - 270, 121, swing(lt, .15)), P(lt, .1, .3));
+  rowGlow.style.opacity = bell(lt, rows - .1, 2.2); rowGlow.style.transform = method.e.style.transform;
+}
+
+// =====================================================================
+// LEVEL - the tilt from the strongest ray through the Fourier spectrum
+// =====================================================================
+const level = el(stage, 'div', 'layer');
+const lvHead = header(level, 'Step 1 · Level', 'Read the tilt from the spectrum', 'Text rows draw one bright streak; the strongest ray gives the tilt');
+const lvStage = stagePanel(level, 110, 300, 860, 640);
+const lvFront = el(front, 'div', 'layer');
+const lensCard = el(lvFront, 'div', 'card', { left: '1000px', top: '300px', width: '800px', height: '640px' });
+el(lensCard, 'div', 'label', { position: 'absolute', left: '30px', top: '26px' }, 'Fourier spectrum · energy along every ray');
+const LENS = { x: 1290, y: 640, r: 190 };
+const lens = el(lvFront, 'img', 'abs', { left: (LENS.x - LENS.r) + 'px', top: (LENS.y - LENS.r) + 'px', width: 2 * LENS.r + 'px', height: 2 * LENS.r + 'px' }); lens.src = 'assets/spectrum.png';
+const tiltBox = el(lvFront, 'div', 'abs', { left: '1590px', top: '520px', width: '190px' });
+el(tiltBox, 'div', 'label', {}, 'Tilt s');
+const tiltVal = el(tiltBox, 'div', '', { fontSize: '74px', fontWeight: 660, color: ACC, letterSpacing: '-0.04em', marginTop: '6px', lineHeight: 1 });
+el(tiltBox, 'div', 'abs mono', { top: '126px', width: '190px', fontSize: '13.5px', color: MUTE, lineHeight: 1.45, whiteSpace: 'normal' }, 'read in 84 ms on one laptop CPU core');
+const lvLab = el(lvFront, 'div', 'pill', { left: '410px', top: '884px', background: '#fff', color: MUTE, border: `1px solid ${LINE}`, fontSize: '15px' }, 'level · still a quarter turn off');
+function levelTimes() { return { streak: beat('level', 'streak', 2.1), angle: beat('level', 'angle', 4.9), turn: beat('level', 'turn', 6.1) }; }
+function drawLevel(t) {
+  const lt = L('level', t), d = SC.level.dur;
+  if (!live('level', t)) { show(level, 0); show(lvFront, 0); return; }
+  show(level, 1); show(lvFront, 1);
+  lvHead(lt, d);
+  const T = levelTimes(), out = fadeOut(lt, d);
+  show(lvStage, out); show(lensCard, P(lt, .15, .4) * out, slideIn(lt, .15));
+  // a ghost of the page flows into the lens, which opens like an iris
+  const fl = P(lt, T.streak - .7, .75, E.inOut);
+  if (fl > 0 && fl < 1) { g.save(); g.globalAlpha = (1 - fl) * .6 * out; g.strokeStyle = ACC; g.lineWidth = 2.5; g.setLineDash([8, 6]);
+    const cx = lerp(IN_C[0], LENS.x, fl), cy = lerp(IN_C[1], LENS.y, fl), s = lerp(470, 180, fl);
+    g.translate(cx, cy); g.rotate(lerp(121, 0, fl) * Math.PI / 180); g.strokeRect(-s * .35, -s / 2, s * .7, s); g.restore(); }
+  const iris = P(lt, T.streak - .1, .7, E.inOut);
+  show(lens, (iris > 0 ? 1 : 0) * out); lens.style.clipPath = `circle(${iris * 50}% at 50% 50%)`;
+  // the ray sweeps -45..45 and settles on the peak; the energy is drawn as a polar curve around the lens
+  const sweep = P(lt, T.streak + .5, T.angle - T.streak - .5, E.inOut), settle = soft(lt, T.angle);
+  const ang = lt < T.angle ? lerp(-45, 45, sweep) : lerp(45, MT.peak, settle);
+  const prof = MT.profile, n = prof.length, idx = a => clamp(Math.round((a + 45) / 90 * (n - 1)), 0, n - 1);
+  const pa = P(lt, T.streak + .2, .4) * out;
+  if (pa > 0) {
+    g.save(); g.globalAlpha = pa;
+    const upto = lt < T.angle ? idx(ang) : n - 1;
+    // the tilt is read modulo 90 deg: the drawn ray follows the streak the eye sees, a quarter turn from the search angle
+    const toScreen = a => (a + 90) * Math.PI / 180;
+    [0, Math.PI].forEach(off => {
+      g.strokeStyle = 'rgba(20,32,46,.10)'; g.lineWidth = 1.2; g.beginPath(); g.arc(LENS.x, LENS.y, LENS.r + 12, toScreen(-45) + off - Math.PI / 2, toScreen(45) + off - Math.PI / 2); g.stroke();
+      g.beginPath();
+      for (let i = 0; i <= upto; i++) { const a = -45 + 90 * i / (n - 1), th = toScreen(a) + off, rr = LENS.r + 12 + 78 * prof[i];
+        const x = LENS.x + Math.sin(th) * rr, y = LENS.y - Math.cos(th) * rr; i ? g.lineTo(x, y) : g.moveTo(x, y); }
+      g.strokeStyle = ACC; g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke();
+    });
+    const th = toScreen(ang), r = LENS.r + 12 + 78 * prof[idx(ang)], locked = lt > T.angle;
+    g.strokeStyle = locked ? ACC : '#E08A3C'; g.lineWidth = locked ? 3.5 : 2.5; g.setLineDash(locked ? [] : [9, 7]);
+    g.beginPath(); g.moveTo(LENS.x + Math.sin(th) * r, LENS.y - Math.cos(th) * r); g.lineTo(LENS.x - Math.sin(th) * r, LENS.y + Math.cos(th) * r); g.stroke();
+    g.setLineDash([]);
+    g.restore();
+    dot(LENS.x + Math.sin(th) * r, LENS.y - Math.cos(th) * r, 7, locked ? ACC : '#E08A3C', pa);
+    if (locked) ring(LENS.x + Math.sin(th) * r, LENS.y - Math.cos(th) * r, 7 + P(lt, T.angle, .7) * 26, ACC, (1 - P(lt, T.angle, .7)) * out, 2);
+  }
+  tiltVal.textContent = lt < T.angle ? '—' : `${(MT.skew * P(lt, T.angle, .5)).toFixed(1)}°`;
+  show(tiltBox, P(lt, T.streak + .3, .4) * out, rise(lt, T.streak + .3, 12));
+  show(lvLab, P(lt, T.turn + .5, .35) * out, rise(lt, T.turn + .5, 10));
+  method.set(IN_C[0], IN_C[1], 470, lerp(121, 121 - MT.skew, swing(lt, T.turn)), 1);
+}
+
+// =====================================================================
+// HANN - photographs: the border outshines the text until a Hann taper fades it
+// =====================================================================
+const hann = el(stage, 'div', 'layer');
+const hnHead = header(hann, 'Step 1 · On photographs', 'A Hann taper for phone photos', 'Untapered, a photo’s border draws a bright cross that outvotes the text');
+const hnStage = stagePanel(hann, 110, 300, 760, 640);
+const hnFront = el(front, 'div', 'layer');
+const PW = 640, PH = PW * HN.size[1] / HN.size[0];
+const photoBox = el(hnFront, 'div', 'abs', { left: (490 - PW / 2) + 'px', top: (590 - PH / 2) + 'px', width: PW + 'px', height: PH + 'px', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 0 0 1px rgba(20,32,46,.1), 0 26px 50px -24px rgba(20,32,46,.5)' });
+el(photoBox, 'img', '', { width: '100%', height: '100%', display: 'block' }).src = 'assets/photo.jpg';
+const taper = el(photoBox, 'div', 'abs', { inset: '0', background: 'radial-gradient(ellipse 50% 52% at 50% 50%, rgba(231,237,245,0) 38%, rgba(231,237,245,.97) 100%)' });
+const hnCap = el(hnFront, 'div', 'abs mono', { left: (490 - PW / 2) + 'px', top: (590 + PH / 2 + 86) + 'px', fontSize: '14px', color: MUTE }, 'Real5 phone photograph · true tilt −26.5°');
+const LENSES = [['off', 'Released jdeskew', 900], ['on', 'With the Hann taper', 1360]].map(([key, name, x]) => {
+  const c = el(hnFront, 'div', 'card', { left: x + 'px', top: '300px', width: '440px', height: '640px' });
+  el(c, 'div', 'label', { position: 'absolute', left: '28px', top: '26px' }, name);
+  const im = el(c, 'img', 'abs', { left: '50px', top: '90px', width: '340px', height: '340px' }); im.src = `assets/hann_${key}.png`;
+  const read = el(c, 'div', 'abs', { left: '28px', top: '486px', fontSize: '54px', fontWeight: 660, letterSpacing: '-0.035em' });
+  const note = el(c, 'div', 'abs', { left: '30px', top: '560px', fontSize: '18px', color: MUTE }, key === 'off' ? 'the border wins: no tilt found' : 'the text wins: true tilt −26.5°');
+  return { c, key, read, note, cx: x + 220, cy: 300 + 260 };
+});
+function drawHann(t) {
+  const lt = L('hann', t), d = SC.hann.dur;
+  if (!live('hann', t)) { show(hann, 0); show(hnFront, 0); return; }
+  show(hann, 1); show(hnFront, 1);
+  hnHead(lt, d);
+  const out = fadeOut(lt, d), tp = beat('hann', 'taper', 2.9), ret = beat('hann', 'returns', 4.4);
+  show(hnStage, P(lt, .05, .35) * out); show(photoBox, P(lt, .1, .4) * out, rise(lt, .1, 20)); show(hnCap, P(lt, .3, .4) * out);
+  taper.style.opacity = P(lt, tp, .9, E.inOut);
+  // the Hann window drawn under the photo as it fades the border
+  const hw = P(lt, tp - .1, .8, E.inOut);
+  if (hw > 0) {
+    g.save(); g.globalAlpha = out; g.strokeStyle = ACC; g.lineWidth = 3; g.lineCap = 'round';
+    const x0 = 490 - PW / 2, y0 = 590 + PH / 2 + 26;
+    g.beginPath(); for (let i = 0; i <= 60 * hw; i++) { const u = i / 60, x = x0 + u * PW, y = y0 + 40 - 40 * Math.sin(Math.PI * u) ** 2; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
+    g.fillStyle = ACC; g.font = '500 13px GeistMono'; g.globalAlpha = out * P(lt, tp + .5, .3); g.fillText('Hann window', x0 + PW - 104, y0 + 8);
+    g.restore();
+  }
+  LENSES.forEach(({ c, key, read, note, cx, cy }, i) => {
+    const t0 = i ? tp + .15 : .4, ok = key === 'on';
+    show(c, P(lt, t0, .4) * out, slideIn(lt, t0, 50));
+    const a = ok ? HN.on.angle : HN.off.angle, settle = ok ? soft(lt, ret - .5) : soft(lt, 1.1), ang = lerp(ok ? 30 : 25, a, settle);
+    const vis = P(lt, t0 + .3, .3) * out;
+    if (vis > 0) {
+      g.save(); g.globalAlpha = vis; const r = 182, th = (ang + 90) * Math.PI / 180;   // along the visible streak (modulo 90)
+      g.strokeStyle = ok ? ACC : RED; g.lineWidth = 3.5;
+      g.beginPath(); g.moveTo(cx + Math.sin(th) * r, cy - Math.cos(th) * r); g.lineTo(cx - Math.sin(th) * r, cy + Math.cos(th) * r); g.stroke();
+      if (!ok) { const pulse = bell(lt, 1.5, 1.4); g.globalAlpha = vis * pulse; g.strokeStyle = RED; g.lineWidth = 2; g.setLineDash([6, 5]);
+        g.beginPath(); g.roundRect(cx - 16, cy - 176, 32, 352, 16); g.stroke(); g.beginPath(); g.roundRect(cx - 176, cy - 16, 352, 32, 16); g.stroke(); }
+      g.restore();
+    }
+    read.textContent = ok ? `${a.toFixed(1).replace('-', '−')}°` : '0.0°';
+    read.style.color = ok ? GREEN : RED; read.style.transformOrigin = '0 60%';
+    show(read, P(lt, ok ? ret : 1.3, .3) * out, `scale(${.85 + .15 * pop(lt, ok ? ret : 1.3)})`);
+    show(note, P(lt, (ok ? ret : 1.3) + .3, .3) * out);
+  });
+}
+
+// =====================================================================
+// ASK - four quarter-turn views of the level page into any frozen backbone
+// =====================================================================
+const ask = el(stage, 'div', 'layer');
+const akHead = header(ask, 'Step 2 · Ask four times', 'Four looks at the level page', 'Any frozen backbone, CNN or VLM: one pass per quarter turn');
+const akStage = stagePanel(ask, 110, 300, 800, 640);
+const akFront = el(front, 'div', 'layer');
+const VIEW = j => [330 + (j % 2) * 360, 470 + Math.floor(j / 2) * 300];
+const viewPills = [0, 1, 2, 3].map(j => el(akFront, 'div', 'pill', { background: '#fff', color: ACC, border: `1px solid ${hexA(ACC, .3)}`, fontSize: '14px', boxShadow: '0 6px 14px -8px rgba(20,32,46,.3)' }, `+${90 * j}°`));
+const backbone = el(akFront, 'div', 'abs', { left: '1000px', top: '400px', width: '190px', height: '400px', background: 'linear-gradient(180deg, #EEF4FC, #DCE8F7)',
+  clipPath: 'polygon(0 0, 100% 14%, 100% 86%, 0 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: ACC, textAlign: 'center' },
+  `${svg('layers', 34)}<div style="font-size:24px;font-weight:650;margin-top:14px;letter-spacing:-0.01em">Backbone</div><div class="label" style="margin-top:10px;font-size:11px;color:#5E6B7C;line-height:1.6">❄ frozen<br>any CNN or VLM</div>`);
+const CH = j => ({ x: 1290, y: 318 + j * 158, w: 510, h: 138 });
+const chCards = [0, 1, 2, 3].map(j => { const c = CH(j); const e = el(akFront, 'div', 'card', { left: c.x + 'px', top: c.y + 'px', width: c.w + 'px', height: c.h + 'px', borderRadius: '18px' });
+  el(e, 'div', 'label', { position: 'absolute', left: '22px', top: '18px', fontSize: '12px' }, `view +${90 * j}°`); return e; });
+const views = [0, 1, 2, 3].map(() => pageEl('assets/method.jpg', ...MT.size));
+function drawAsk(t) {
+  const lt = L('ask', t), d = SC.ask.dur;
+  if (!live('ask', t)) { show(ask, 0); if (!live('roll', t)) show(akFront, 0); return; }
+  show(ask, 1); show(akFront, 1);
+  akHead(lt, d);
+  const four = beat('ask', 'four', 2.55), out = fadeOut(lt, d, .25);
+  show(akStage, out); show(backbone, P(lt, .45, .35) * out, `scale(${.88 + .12 * pop(lt, .45)})`);
+  // one bus from the four views into the backbone, carrying one pulse per view
+  [0, 1, 2, 3].forEach(j => flow([914, 600], [996, 600], P(lt, 1.0, .4, E.inOut), { a: out, w: 4, pulse: P(lt, four - .45 + j * .16, .45, E.inOut) }));
+  [0, 1, 2, 3].forEach(j => {
+    const [vx, vy] = VIEW(j), k = soft(lt, .45 + j * .12);
+    // all four start as the level page itself, then fan out and turn by their quarter turn
+    views[j].set(lerp(IN_C[0], vx, k), lerp(IN_C[1], vy, k), lerp(470, 220, k), 90 + 90 * j * clamp(k * 1.1), 1);
+    show(viewPills[j], P(lt, .85 + j * .12, .25) * out, `translate(${vx - 28}px, ${vy - 142}px) scale(${.8 + .2 * pop(lt, .85 + j * .12)})`);
+    const c = CH(j);
+    flow([1190, 520 + j * 54], [c.x - 4, c.y + c.h / 2], P(lt, 1.3 + j * .1, .5, E.inOut), { a: out, w: 3, pulse: P(lt, four + .25 + j * .14, .55, E.inOut) });
+    show(chCards[j], P(lt, 1.2 + j * .1, .35) * out, slideIn(lt, 1.2 + j * .1, 40)); chCards[j].firstChild.style.opacity = 1;
+    bars(c.x + 200, c.y + 28, 280, 74, MT.raw[j], out, P(lt, four + .75 + j * .14, .5, E.out), { values: true });
+  });
+}
+
+// =====================================================================
+// ROLL - roll each answer back by its turn, multiply, and turn the page upright
+// =====================================================================
+const roll = el(stage, 'div', 'layer');
+const rlHead = header(roll, 'Step 3 · Roll back and combine', 'Roll back, then multiply', 'Each answer is shifted back by its own turn; a geometric mean combines them');
+const rlFront = el(front, 'div', 'layer');
+const RC = j => ({ x: 230, y: 318 + j * 158, w: 450, h: 138 });
+const rollPills = [0, 1, 2, 3].map(j => el(rlFront, 'div', 'pill', { background: ACCBG, color: ACC, fontSize: '13px' }, `roll −${90 * j}°`));
+const agree = el(rlFront, 'div', 'pill', { background: '#fff', color: ACC, border: `1px solid ${hexA(ACC, .35)}`, fontSize: '14px' }, 'three views agree on 90°');
+const wrongTag = el(rlFront, 'div', 'pill', { background: '#FDECEC', color: RED, border: `1px solid ${hexA(RED, .35)}`, fontSize: '13px' }, 'confidently wrong: 0.95 on 270°');
+const geoNode = el(rlFront, 'div', 'abs', { left: '742px', top: '582px', width: '104px', height: '104px', borderRadius: '50%', background: '#fff', border: `2.5px solid ${ACC}`, color: ACC, fontSize: '46px',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 16px 34px -18px rgba(31,95,173,.6)' }, '×');
+const geoLab = el(rlFront, 'div', 'abs label', { left: '704px', top: '700px', width: '180px', textAlign: 'center', fontSize: '11.5px', lineHeight: 1.6 }, 'geometric mean<br>× prior');
+const postCard = el(rlFront, 'div', 'card', { left: '900px', top: '330px', width: '440px', height: '470px' });
+el(postCard, 'div', 'label', { position: 'absolute', left: '28px', top: '26px' }, 'Posterior P(k | page)');
+const postVal = el(postCard, 'div', 'abs', { left: '28px', top: '330px', fontSize: '72px', fontWeight: 660, color: ACC, letterSpacing: '-0.04em', lineHeight: 1 });
+el(postCard, 'div', 'abs mono', { left: '30px', top: '412px', fontSize: '14px', color: MUTE }, 'on k = 90°, the right turn');
+const biasNote = el(rlFront, 'div', 'abs', { left: '900px', top: '826px', width: '440px', fontSize: '18px', color: MUTE, lineHeight: 1.42 }, 'A model’s fixed favourite lands on every turn once after the roll, so it cancels in the product.');
+const rlStage = stagePanel(roll, 1380, 300, 430, 640);
+const upBadge = el(rlFront, 'div', 'badge', { background: GREEN }, '✓');
+const upLab = el(rlFront, 'div', 'abs', { left: '1380px', top: '884px', width: '430px', textAlign: 'center', fontSize: '18px', color: GREEN, fontWeight: 600 }, 'turned back 90° + 31° = 121°');
+const RL_OUT = [1595, 600];
+function rollTimes() { return { roll: beat('roll', 'roll', 1.0), multiply: beat('roll', 'multiply', 2.45), cancel: beat('roll', 'cancel', 4.4), outvoted: beat('roll', 'outvoted', 6.66) }; }
+function drawRoll(t) {
+  const lt = L('roll', t), d = SC.roll.dur;
+  if (!live('roll', t)) { show(roll, 0); show(rlFront, 0); return; }
+  show(roll, 1); show(rlFront, 1); show(akFront, 1); show(ask, 0); show(backbone, 0);
+  rlHead(lt, d);
+  const T = rollTimes(), out = fadeOut(lt, d), mv = P(lt, 0, .9, E.inOut);
+  // the agreement band behind the 90 deg column, once every chart is rolled
+  const band = P(lt, T.roll + 1.3, .5) * out * (1 - P(lt, T.outvoted - .1, .4));
+  [0, 1, 2, 3].forEach(j => {
+    const a = CH(j), b = RC(j), x = lerp(a.x, b.x, mv), y = lerp(a.y, b.y, mv), w = lerp(a.w, b.w, mv);
+    show(chCards[j], out, `translate(${x - a.x}px, ${y - a.y}px)`); chCards[j].style.width = w + 'px'; chCards[j].firstChild.style.opacity = 1 - mv;
+    const cx = x + w - 300, cy = y + 28;
+    if (band > 0) { g.save(); g.globalAlpha = band; g.fillStyle = hexA(ACC, .1); g.beginPath(); g.roundRect(cx + 70 - 28, cy - 12, 56, 100, 10); g.fill(); g.restore(); }
+    const sh = j * P(lt, T.roll + j * .25, .7, E.inOut);
+    bars(cx, cy, 280, 74, MT.raw[j], out, 1, { hi: j === 0 && lt > T.outvoted ? 3 : -1, shift: sh, values: true });
+    show(rollPills[j], P(lt, T.roll - .2 + j * .25, .25) * out, `translate(${b.x + 22}px, ${b.y + 92}px)`);
+    flow([b.x + b.w + 6, b.y + b.h / 2], [744, 634], P(lt, T.multiply - .5, .5, E.inOut), { a: out, w: 3, pulse: P(lt, T.multiply - .2 + j * .08, .55, E.inOut), head: false });
+  });
+  viewPills.forEach(p => show(p, 0));
+  show(agree, band, `translate(${RC(0).x + 150}px, ${RC(0).y - 32}px)`);
+  show(geoNode, P(lt, T.multiply, .3) * out, `scale(${.7 + .3 * pop(lt, T.multiply)})`); show(geoLab, P(lt, T.multiply + .2, .3) * out);
+  show(postCard, P(lt, T.multiply + .3, .4) * out, slideIn(lt, T.multiply + .3, 40));
+  const pk = P(lt, T.multiply + .6, .9, E.out);
+  bars(940, 400, 360, 190, MT.posterior, out * P(lt, T.multiply + .4, .3), pk, {});
+  postVal.textContent = (MT.posterior[1] * pk).toFixed(3);
+  show(postVal, P(lt, T.multiply + .6, .3) * out);
+  show(biasNote, P(lt, T.cancel, .4) * out, rise(lt, T.cancel, 12));
+  show(wrongTag, P(lt, T.outvoted, .3) * out, `translate(${RC(0).x + 150}px, ${RC(0).y - 32}px) scale(${.85 + .15 * pop(lt, T.outvoted)})`);
+  show(rlStage, P(lt, T.outvoted + .3, .4) * out, rise(lt, T.outvoted + .3, 16));
+  const st = lt - (T.outvoted + 1.6);
+  show(upBadge, P(st, 0, .2) * out, `translate(1760px, 322px) scale(${.4 + .6 * pop(st, 0)})`);
+  show(upLab, P(st, .15, .3) * out, rise(st, .15, 8));
+  // pages: the views shrink beside their charts; the level page returns on the right and turns upright
+  views.forEach((v, j) => { const [vx, vy] = VIEW(j); v.set(lerp(vx, RC(j).x - 70, mv), lerp(vy, RC(j).y + 69, mv), lerp(220, 104, mv), 90 + 90 * j, out); });
+  method.set(RL_OUT[0], RL_OUT[1], 470, lerp(90, 0, swing(lt, T.outvoted + 1.0)), P(lt, T.outvoted + .6, .4) * out);
+}
+
+// =====================================================================
+// ANY - one wrapper, eleven frozen backbones
+// =====================================================================
+const any = el(stage, 'div', 'layer');
+const anHead = header(any, 'Any backbone', 'No training. Any model.', 'The same wrapper for eleven backbones; nothing is fine-tuned');
+const anFront = el(front, 'div', 'layer');
+const ANY_C = [960, 640];
+const core = el(anFront, 'div', 'abs', { left: (ANY_C[0] - 130) + 'px', top: (ANY_C[1] - 130) + 'px', width: '260px', height: '260px', borderRadius: '50%', background: '#fff', border: `2.5px solid ${ACC}`,
+  boxShadow: '0 30px 60px -28px rgba(31,95,173,.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' },
+  '<div style="font-size:38px;font-weight:680;letter-spacing:-0.035em">Level<span style="color:#1F5FAD">Head</span></div><div class="label" style="margin-top:10px;font-size:11px;color:#1F5FAD">level · ask ×4 · combine</div>');
+const BACKBONES = [['docTR', 0], ['PP-LCNet', 0], ['Swin-T', 0], ['BEiT-B', 0], ['Qwen3-VL-8B', 1], ['Qwen3-VL-30B-A3B', 1], ['Qwen3-VL-32B', 1], ['Qwen3-VL-235B-A22B', 1], ['GPT-4o-mini', 1], ['Gemma-4-31B', 1], ['DeepSeek-V4.1-Flash', 1]];
+// classifiers on the left arc, VLMs on the right
+const bbPos = i => { const left = i < 4, k = left ? i / 3 : (i - 4) / 6, a = left ? lerp(Math.PI * 1.22, Math.PI * .78, k) : lerp(-Math.PI * .36, Math.PI * .36, k); return [ANY_C[0] + Math.cos(a) * 560, ANY_C[1] + Math.sin(a) * 300]; };
+const bbEls = BACKBONES.map(([n, vlm]) => el(anFront, 'div', 'pill', { background: '#fff', color: vlm ? ACC : INK, border: `1px solid ${vlm ? hexA(ACC, .4) : '#D3DBE5'}`, fontSize: '17px', padding: '10px 18px', fontFamily: 'Geist', fontWeight: 560,
+  boxShadow: '0 10px 22px -14px rgba(20,32,46,.35)' }, n));
+const grpL = el(anFront, 'div', 'abs label', { left: '250px', top: '330px', color: INK }, 'Orientation classifiers');
+const grpR = el(anFront, 'div', 'abs label', { left: '1420px', top: '330px', color: ACC }, 'Vision-language models');
+const scaleBar = el(anFront, 'div', 'abs', { left: '0', width: W + 'px', top: '992px', textAlign: 'center', fontSize: '20px', color: MUTE }, 'from a <b style="color:#14202E">mobile CNN</b> to a <b style="color:#1F5FAD">235-billion-parameter VLM</b>, with no training and no new parameters');
+function drawAny(t) {
+  const lt = L('any', t), d = SC.any.dur;
+  if (!live('any', t)) { show(any, 0); show(anFront, 0); return; }
+  show(any, 1); show(anFront, 1);
+  anHead(lt, d);
+  const out = fadeOut(lt, d), wr = beat('any', 'wraps', .9), vlm = beat('any', 'vlm', 3.2);
+  show(core, P(lt, .2, .35) * out, `scale(${.8 + .2 * pop(lt, .2)})`);
+  g.save(); g.globalAlpha = out * P(lt, .3, .4); g.strokeStyle = hexA(ACC, .35); g.lineWidth = 2; g.setLineDash([4, 12]); g.lineDashOffset = -lt * 30;
+  g.beginPath(); g.arc(...ANY_C, 170, 0, 7); g.stroke(); g.restore();
+  show(grpL, P(lt, wr, .3) * out); show(grpR, P(lt, vlm - 1, .3) * out);
+  BACKBONES.forEach(([n, isVlm], i) => {
+    const t0 = isVlm ? vlm - 1.0 + (i - 4) * .1 : wr + i * .12, k = soft(lt, t0), [x, y] = bbPos(i);
+    show(bbEls[i], P(lt, t0, .25) * out, `translate(${lerp(x + (isVlm ? 260 : -260), x, k)}px, ${y}px) translate(-50%, -50%)`);
+    const w2 = bbEls[i].offsetWidth / 2 + 6, start = [x + (x < ANY_C[0] ? w2 : -w2), y], edge = [ANY_C[0] + (x < ANY_C[0] ? -172 : 172), ANY_C[1] + (y - ANY_C[1]) * .3];
+    flow(start, edge, P(lt, t0 + .55, .45, E.inOut), { a: out * .85, w: 2.5, head: false, c0: isVlm ? ACC2 : '#C9D2DD', c1: isVlm ? ACC : '#94A3B8', pulse: P(lt, t0 + .9, .6, E.inOut) });
+  });
+  show(scaleBar, P(lt, vlm + .2, .4) * out, rise(lt, vlm + .2, 10));
+}
+
+// =====================================================================
+// RESULTS - flat where classify-first breaks; every backbone gains at large tilt
+// =====================================================================
+const results = el(stage, 'div', 'layer');
+const reHead = header(results, 'Results', 'Flat where classify-first breaks', 'Same backbone, same deskewer, same vote: only the order of the two steps changes');
+const reFront = el(front, 'div', 'layer');
+const angCard = el(reFront, 'div', 'card', { left: '110px', top: '300px', width: '980px', height: '640px' });
+el(angCard, 'div', 'label', { position: 'absolute', left: '30px', top: '26px' }, 'Accuracy by the angle a page was turned · PP-LCNet · 1,651 pages');
+const AC = { x: 200, y: 400, w: 850, h: 420 };
+const cfLab = el(reFront, 'div', 'pill', { background: '#F1F4F8', color: '#64748B', fontSize: '14px' }, 'classify-first');
+const lhLab = el(reFront, 'div', 'pill', { background: ACCBG, color: ACC, fontSize: '14px' }, 'LevelHead');
+const gainLab = el(reFront, 'div', 'abs mono', { fontSize: '14px', color: ACC, fontWeight: 600 }, 'the gain');
+const dbCard = el(reFront, 'div', 'card', { left: '1120px', top: '300px', width: '690px', height: '640px' });
+el(dbCard, 'div', 'label', { position: 'absolute', left: '30px', top: '26px' }, 'Accuracy at 30–45° of tilt (%)');
+const DB = { x: 1380, y: 390, w: 320, row: 46 };
+const dbNames = D.tilt.map(([n], i) => el(reFront, 'div', 'abs', { left: '1140px', top: (DB.y + i * DB.row - 12) + 'px', width: '214px', textAlign: 'right', fontSize: '17px', fontWeight: 520, color: i < 4 ? INK : ACC, whiteSpace: 'nowrap' }, n));
+const dbGain = D.tilt.map(() => el(reFront, 'div', 'abs mono', { fontSize: '16px', color: ACC, fontWeight: 700 }));
+const dbLegend = el(reFront, 'div', 'abs', { left: '1150px', top: '900px', display: 'flex', gap: '24px', fontFamily: 'GeistMono', fontSize: '13.5px', color: MUTE },
+  '<span><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#B8C2CC;margin-right:8px"></span>classify-first + vote</span><span><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:#1F5FAD;margin-right:8px"></span>LevelHead</span>');
+function drawResults(t) {
+  const lt = L('results', t), d = SC.results.dur;
+  if (!live('results', t)) { show(results, 0); show(reFront, 0); return; }
+  show(results, 1); show(reFront, 1);
+  reHead(lt, d);
+  const out = fadeOut(lt, d), flat = beat('results', 'flat', 3.0), gains = beat('results', 'gains', 4.4);
+  show(angCard, P(lt, .1, .4) * out, rise(lt, .1, 18));
+  const X = a => AC.x + a / 360 * AC.w, Y = v => AC.y + AC.h - v / 100 * AC.h, mids = [...Array(24)].map((_, i) => 7.5 + 15 * i);
+  const A = D.angle, kc = P(lt, .4, 2.3, E.inOut), kl = P(lt, flat, 1.3, E.inOut), fill = P(lt, flat + 1.0, .7);
+  g.save(); g.globalAlpha = out * P(lt, .2, .3);
+  g.strokeStyle = LINE; g.lineWidth = 1; [0, 25, 50, 75, 100].forEach(v => { g.beginPath(); g.moveTo(AC.x, Y(v)); g.lineTo(AC.x + AC.w, Y(v)); g.stroke(); });
+  [45, 135, 225, 315].forEach(a => { g.setLineDash([3, 6]); g.strokeStyle = '#D9E0E9'; g.beginPath(); g.moveTo(X(a), AC.y); g.lineTo(X(a), AC.y + AC.h); g.stroke(); g.setLineDash([]); });
+  g.fillStyle = FAINT; g.font = '500 14px GeistMono'; g.textAlign = 'center';
+  [0, 45, 90, 135, 180, 225, 270, 315, 360].forEach(a => g.fillText(a + '°', X(a), AC.y + AC.h + 28));
+  g.textAlign = 'right'; [0, 50, 100].forEach(v => g.fillText(v + '%', AC.x - 14, Y(v) + 5));
+  if (fill > 0) { g.globalAlpha = out * fill; const gr = g.createLinearGradient(0, AC.y, 0, AC.y + AC.h); gr.addColorStop(0, 'rgba(31,95,173,.22)'); gr.addColorStop(1, 'rgba(31,95,173,.05)'); g.fillStyle = gr;
+    g.beginPath(); mids.forEach((a, i) => (i ? g.lineTo(X(a), Y(A.lh[i])) : g.moveTo(X(a), Y(A.lh[i])))); [...mids].reverse().forEach((a, j) => g.lineTo(X(a), Y(A.cf[23 - j]))); g.closePath(); g.fill(); }
+  const line = (vals, k, col, w, dash) => { if (k <= 0) return null; g.globalAlpha = out; g.strokeStyle = col; g.lineWidth = w; g.setLineDash(dash); g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath();
+    const upto = k * 23, n = Math.floor(upto); let hx = X(mids[0]), hy = Y(vals[0]);
+    for (let i = 0; i <= n; i++) { hx = X(mids[i]); hy = Y(vals[i]); i ? g.lineTo(hx, hy) : g.moveTo(hx, hy); }
+    if (n < 23) { const f = upto - n; hx = lerp(X(mids[n]), X(mids[n + 1]), f); hy = lerp(Y(vals[n]), Y(vals[n + 1]), f); g.lineTo(hx, hy); }
+    g.stroke(); g.setLineDash([]); return [hx, hy]; };
+  const hc = line(A.cf, kc, '#A7B3C1', 3, [10, 7]); const hl = line(A.lh, kl, ACC, 5, []);
+  g.restore();
+  if (hc && kc < 1) dot(...hc, 6, '#A7B3C1', out); if (hl && kl < 1) { dot(...hl, 8, ACC, out); ring(...hl, 13, ACC, .3 * out, 2); }
+  show(cfLab, P(lt, 2.2, .3) * out, `translate(${X(45) + 28}px, ${Y(8)}px)`);
+  show(lhLab, P(lt, flat + 1.0, .3) * out, `translate(${X(300) - 40}px, ${Y(100) - 44}px)`);
+  gainLab.style.left = (X(135) - 30) + 'px'; gainLab.style.top = Y(55) + 'px'; show(gainLab, P(lt, flat + 1.5, .3) * out);
+  show(dbCard, P(lt, gains - .45, .4) * out, slideIn(lt, gains - .45, 50));
+  const DX = v => DB.x + (v - 25) / 75 * DB.w;
+  D.tilt.forEach(([n, cf, lh], i) => {
+    const t0 = gains + i * .09, a = P(lt, t0 - .2, .3) * out, k = P(lt, t0, .7, E.inOut), y = DB.y + i * DB.row;
+    show(dbNames[i], a);
+    if (a <= 0) return show(dbGain[i], 0);
+    g.save(); g.globalAlpha = a;
+    g.strokeStyle = '#EEF1F5'; g.lineWidth = 1; g.beginPath(); g.moveTo(DB.x, y); g.lineTo(DB.x + DB.w, y); g.stroke();
+    g.strokeStyle = '#C9D9EE'; g.lineWidth = 8; g.lineCap = 'round'; g.beginPath(); g.moveTo(DX(cf), y); g.lineTo(DX(lerp(cf, lh, k)), y); g.stroke();
+    g.restore();
+    dot(DX(cf), y, 8, NEU, a); dot(DX(lerp(cf, lh, k)), y, 9.5, ACC, a); dot(DX(lerp(cf, lh, k)), y, 3.5, '#fff', a);
+    dbGain[i].textContent = `+${Math.round((lh - cf) * k)}`; dbGain[i].style.left = (DB.x + DB.w + 22) + 'px'; dbGain[i].style.top = (y - 11) + 'px';
+    dbGain[i].style.fontSize = n === 'PP-LCNet' ? '20px' : '16px';
+    show(dbGain[i], P(lt, t0 + .2, .3) * out);
+  });
+  show(dbLegend, P(lt, gains + .3, .3) * out);
+}
+
+// =====================================================================
+// REAL - real pages at every difficulty: classify-first leaves them sideways, LevelHead recovers them
+// =====================================================================
+const real = el(stage, 'div', 'layer');
+const raHead = header(real, 'Real pages', 'From level scans to photos on a desk', 'Qwen3-VL-32B with the same vote: only the order changes');
+const raFront = el(front, 'div', 'layer');
+const LEVELS = ['Level page, quarter turn', 'Small tilt, 5–15°', 'Large tilt, 30–45°', 'Indic page, 30° tilt', 'Page on a photograph'];
+const GX = i => 400 + i * 300, GY = { in: 430, cf: 625, lh: 820 }, GBOX = [240, 150];
+const cells = [];
+LEVELS.forEach((n, i) => ['in', 'cf', 'lh'].forEach(k => cells.push(el(real, 'div', 'abs', { left: (GX(i) - 136) + 'px', top: (GY[k] - 88) + 'px', width: '272px', height: '176px', borderRadius: '18px',
+  background: k === 'lh' ? '#E3ECF8' : '#E9EEF5' }))));
+const colLabs = LEVELS.map((n, i) => el(raFront, 'div', 'abs', { left: (GX(i) - 140) + 'px', top: '296px', width: '280px', textAlign: 'center', fontSize: '16px', fontWeight: 600, color: INK }, n));
+const rowLabs = [['Input', 'in', FAINT], ['Classify-first', 'cf', RED], ['LevelHead', 'lh', ACC]].map(([n, k, c]) => el(raFront, 'div', 'abs label', { left: '96px', top: (GY[k] - 9) + 'px', width: '150px', fontSize: '13px', color: c }, n));
+const thumbs = D.gallery.map((gi, i) => Object.fromEntries(['in', 'cf', 'lh'].map(k => {
+  const [w, h] = gi[k], s = Math.min(GBOX[0] / w, GBOX[1] / h);
+  const box = el(raFront, 'div', 'abs', { left: (GX(i) - w * s / 2) + 'px', top: (GY[k] - h * s / 2) + 'px', width: (w * s) + 'px', height: (h * s) + 'px', borderRadius: '3px', overflow: 'hidden',
+    boxShadow: '0 0 0 1px rgba(20,32,46,.10), 0 12px 24px -12px rgba(20,32,46,.4)', background: '#fff' });
+  el(box, 'img', '', { width: '100%', height: '100%', display: 'block' }).src = `assets/${gi.stem}_${k}.jpg`;
+  const mark = el(raFront, 'div', 'abs', { left: (GX(i) + 110) + 'px', top: (GY[k] - 82) + 'px', width: '30px', height: '30px', borderRadius: '50%', display: k === 'in' ? 'none' : 'flex',
+    alignItems: 'center', justifyContent: 'center', background: k === 'cf' ? RED : GREEN, color: '#fff', fontSize: '16px', fontWeight: 700, boxShadow: '0 0 0 4px #fff' }, k === 'cf' ? '✕' : '✓');
+  return [k, { box, mark }];
+})));
+const statRow = el(raFront, 'div', 'abs', { left: '0', top: '950px', width: W + 'px', display: 'flex', justifyContent: 'center', gap: '24px' });
+const stats = [['Phone photos, any angle', '69 → 90%'], ['Scans, any angle', '65 → 91%']].map(([a, b], i) =>
+  el(statRow, 'div', 'pill', { position: 'relative', background: '#fff', border: `1px solid ${LINE}`, color: INK, fontSize: '18px', padding: '11px 22px', fontFamily: 'Geist', boxShadow: '0 10px 24px -16px rgba(20,32,46,.4)' },
+    `<span style="color:#5E6B7C">${a}</span> &nbsp;<b style="color:#1F5FAD">${b}</b>`));
+function drawReal(t) {
+  const lt = L('real', t), d = SC.real.dur;
+  if (!live('real', t)) { show(real, 0); show(raFront, 0); return; }
+  show(real, 1); show(raFront, 1);
+  raHead(lt, d);
+  const out = fadeOut(lt, d), climb = beat('real', 'climb', 1.8);
+  cells.forEach((c, j) => { const i = Math.floor(j / 3), r = j % 3, t0 = [.25 + i * .06, climb - .3 + i * .08, climb + .45 + i * .1][r]; show(c, P(lt, t0, .3) * out, `scale(${.94 + .06 * soft(lt, t0)})`); });
+  colLabs.forEach((e, i) => show(e, P(lt, .2 + i * .06, .3) * out, rise(lt, .2 + i * .06, 10)));
+  rowLabs.forEach((e, i) => show(e, P(lt, [.3, climb - .2, climb + .5][i], .3) * out));
+  thumbs.forEach((th, i) => ['in', 'cf', 'lh'].forEach((k, r) => {
+    const t0 = [.3 + i * .08, climb - .1 + i * .1, climb + .6 + i * .12][r];
+    show(th[k].box, P(lt, t0, .3) * out, `translateY(${(1 - soft(lt, t0)) * (r ? -50 : 30)}px) scale(${.9 + .1 * soft(lt, t0)})`);
+    show(th[k].mark, P(lt, t0 + .3, .2) * out, `scale(${.4 + .6 * pop(lt, t0 + .3)})`);
+  }));
+  stats.forEach((e, i) => { const t0 = climb + 1.4 + i * .4; show(e, P(lt, t0, .35) * out, rise(lt, t0, 12)); });
+}
+
+// =====================================================================
+// SCORES - two tasks, two metrics: orientation accuracy (higher is better), OCR edit distance (lower is better)
+// =====================================================================
+// Table 1, Avg. of seven benchmarks: LevelHead accuracy (%) and its gain over classify-first with the same backbone and deskewer
+const ORIENT = [['docTR', 86.6, 6.5], ['PP-LCNet', 89.0, 10.5], ['Swin-T', 85.2, 9.6], ['BEiT-B', 80.5, 2.1],
+  ['Qwen3-VL-8B', 80.5, 47.9], ['Qwen3-VL-30B-A3B', 70.7, 29.0], ['Qwen3-VL-32B', 95.8, 51.5], ['Qwen3-VL-235B-A22B', 91.3, 42.5],
+  ['GPT-4o-mini', 69.9, 35.5], ['Gemma-4-31B', 94.5, 32.4], ['DeepSeek-V4.1-Flash', 96.5, 27.7]];
+const ORIENT_AVG = { cls: 7.2, vlm: 38.1 };
+// Table 3, ODB-any with PP-LCNet as the backbone: page-level normalised edit distance as given, classify-first, LevelHead, oracle
+const OCR = [['docTR', 'classical OCR', .876, .625, .481, .481], ['PP-OCRv5', 'classical OCR', .758, .648, .527, .523], ['Qwen3-VL-8B', 'VLM reader', .562, .441, .368, .366]];
+const scores = el(stage, 'div', 'layer');
+const scHead = header(scores, 'Test scores', 'Two tasks, two different scores', 'Guessing the angle is scored by accuracy; reading the page by edit distance to the true text');
+const scFront = el(front, 'div', 'layer');
+const orCard = el(scFront, 'div', 'card', { left: '110px', top: '300px', width: '900px', height: '650px' });
+el(orCard, 'div', 'label', { position: 'absolute', left: '30px', top: '26px', color: ACC }, 'Guessing the angle · accuracy % ↑');
+el(orCard, 'div', 'abs mono', { left: '30px', top: '52px', fontSize: '14px', color: MUTE }, 'average of seven benchmarks · gain over classify-first');
+const ROW_Y = i => 300 + (i < 4 ? 146 + i * 38 : 348 + (i - 4) * 38), BAR_X = 400, BAR_K = 4.6;
+const grpHeads = [['Orientation classifiers', 108, INK, 'cls'], ['Vision-language models', 310, ACC, 'vlm']].map(([n, y, c, key]) => {
+  const e = el(scFront, 'div', 'abs', { left: '140px', top: (300 + y - 16) + 'px', width: '840px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' });
+  el(e, 'div', 'label', { color: c }, n);
+  const v = el(e, 'div', '', { fontSize: '30px', fontWeight: 680, color: c, letterSpacing: '-0.03em' });
+  return { e, v, key };
+});
+const orNames = ORIENT.map(([n], i) => el(scFront, 'div', 'abs', { left: '130px', top: (ROW_Y(i) - 12) + 'px', width: '250px', textAlign: 'right', fontSize: '17px', fontWeight: 520, color: i < 4 ? INK : ACC, whiteSpace: 'nowrap' }, n));
+const orGain = ORIENT.map(() => el(scFront, 'div', 'abs mono', { fontSize: '16px', fontWeight: 700, color: ACC }));
+const orLegend = el(scFront, 'div', 'abs', { left: '140px', top: '904px', display: 'flex', gap: '24px', fontFamily: 'GeistMono', fontSize: '13.5px', color: MUTE },
+  '<span><span style="display:inline-block;width:22px;height:10px;border-radius:5px;background:#C3CCD7;margin-right:8px"></span>classify-first</span><span><span style="display:inline-block;width:22px;height:10px;border-radius:5px;background:#1F5FAD;margin-right:8px"></span>LevelHead adds</span>');
+const ocCard = el(scFront, 'div', 'card', { left: '1040px', top: '300px', width: '770px', height: '650px' });
+el(ocCard, 'div', 'label', { position: 'absolute', left: '30px', top: '26px', color: ACC }, 'Reading the page · OCR edit distance ↓');
+el(ocCard, 'div', 'abs mono', { left: '30px', top: '52px', fontSize: '14px', color: MUTE }, 'pages turned by any angle · lower is better');
+const ocHead = el(scFront, 'div', 'abs', { right: '138px', top: '318px', textAlign: 'right' },
+  '<div style="font-size:36px;font-weight:680;color:#1F5FAD;letter-spacing:-0.03em">Oracle-level</div><div class="mono" style="font-size:13px;color:#5E6B7C;margin-top:4px">within 0.012 of the true turn</div>');
+const OC = { base: 790, k: 400, cx: i => 1040 + 770 / 6 * (1 + 2 * i), bw: 50, off: [-60, 0, 60] };
+const OC_COL = ['#DCE3EC', '#A7B3C1', ACC];
+const ocNames = OCR.map(([n, kind], i) => el(scFront, 'div', 'abs', { left: (OC.cx(i) - 120) + 'px', top: (OC.base + 16) + 'px', width: '240px', textAlign: 'center' },
+  `<div style="font-size:18px;font-weight:620">${n}</div><div class="label" style="font-size:11px;margin-top:4px">${kind}</div>`));
+const ocLegend = el(scFront, 'div', 'abs', { left: '1070px', top: '904px', display: 'flex', gap: '20px', fontFamily: 'GeistMono', fontSize: '13px', color: MUTE },
+  ['as given', 'classify-first', 'LevelHead'].map((n, j) => `<span><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${OC_COL[j]};margin-right:7px"></span>${n}</span>`).join('') +
+  '<span><span style="display:inline-block;width:20px;border-top:2px dashed #2E9E5B;margin-right:7px;vertical-align:middle"></span>oracle</span>');
+function scoreTimes() { return { angle: beat('scores', 'angle', 1.6), vlm: beat('scores', 'vlm', 3.0), cls: beat('scores', 'cls', 5.4), ocr: beat('scores', 'ocr', 6.6), oracle: beat('scores', 'oracle', 8.4) }; }
+function drawScores(t) {
+  const lt = L('scores', t), d = SC.scores.dur;
+  if (!live('scores', t)) { show(scores, 0); show(scFront, 0); return; }
+  show(scores, 1); show(scFront, 1);
+  scHead(lt, d);
+  const T = scoreTimes(), out = fadeOut(lt, d);
+  show(orCard, P(lt, T.angle - .4, .4) * out, slideIn(lt, T.angle - .4, -50));
+  show(orLegend, P(lt, T.angle + .4, .3) * out);
+  grpHeads.forEach(({ e, v, key }) => {
+    const t0 = key === 'vlm' ? T.vlm : T.cls;
+    show(e, P(lt, T.angle - .1, .3) * out);
+    v.textContent = lt < t0 ? '' : `+${(ORIENT_AVG[key] * P(lt, t0 + .2, .9)).toFixed(1)} pts`;
+  });
+  ORIENT.forEach(([n, lh, gain], i) => {
+    const y = ROW_Y(i), cf = lh - gain, isVlm = i >= 4, a = P(lt, T.angle + i * .04, .3) * out;
+    show(orNames[i], a);
+    if (a <= 0) return show(orGain[i], 0);
+    const kc = P(lt, T.angle + .15 + i * .05, .55, E.inOut), t1 = (isVlm ? T.vlm + (i - 4) * .09 : T.cls + i * .09), kl = P(lt, t1, .6, E.inOut);
+    g.save(); g.globalAlpha = a; g.lineCap = 'round';
+    g.fillStyle = '#EEF1F5'; g.beginPath(); g.roundRect(BAR_X, y - 7, 100 * BAR_K, 14, 7); g.fill();
+    g.fillStyle = '#C3CCD7'; g.beginPath(); g.roundRect(BAR_X, y - 7, Math.max(14, cf * BAR_K * kc), 14, 7); g.fill();
+    if (kl > 0) { const gr = g.createLinearGradient(BAR_X + cf * BAR_K, 0, BAR_X + lh * BAR_K, 0); gr.addColorStop(0, ACC2); gr.addColorStop(1, ACC);
+      g.fillStyle = gr; g.beginPath(); g.roundRect(BAR_X + cf * BAR_K - 7, y - 7, gain * BAR_K * kl + 7, 14, 7); g.fill(); }
+    g.restore();
+    orGain[i].textContent = `+${(gain * kl).toFixed(0)}`; orGain[i].style.left = (BAR_X + 100 * BAR_K + 18) + 'px'; orGain[i].style.top = (y - 11) + 'px';
+    orGain[i].style.color = isVlm ? ACC : '#475569';
+    show(orGain[i], P(lt, t1, .2) * out);
+  });
+  show(ocCard, P(lt, T.ocr - .4, .4) * out, slideIn(lt, T.ocr - .4, 50));
+  show(ocLegend, P(lt, T.ocr, .3) * out);
+  show(ocHead, P(lt, T.oracle + .1, .35) * out, rise(lt, T.oracle + .1, 10));
+  OCR.forEach(([n, kind, ...vals], i) => {
+    const cx = OC.cx(i), a = P(lt, T.ocr - .1 + i * .1, .3) * out;
+    show(ocNames[i], a, rise(lt, T.ocr - .1 + i * .1, 8));
+    if (a <= 0) return;
+    g.save(); g.globalAlpha = a; g.fillStyle = LINE; g.fillRect(cx - 105, OC.base, 210, 1.5);
+    [0, 1, 2].forEach(j => {
+      const k = P(lt, T.ocr + .15 + i * .12 + j * .08, .55, E.out), v = vals[j] * k, h = v * OC.k, x = cx + OC.off[j] - OC.bw / 2;
+      const gr = g.createLinearGradient(0, OC.base - h, 0, OC.base); gr.addColorStop(0, OC_COL[j]); gr.addColorStop(1, j === 2 ? hexA(ACC, .75) : OC_COL[j]);
+      g.fillStyle = gr; g.beginPath(); g.roundRect(x, OC.base - h, OC.bw, Math.max(2, h), [6, 6, 2, 2]); g.fill();
+      if (k > .5) { g.globalAlpha = a * P(lt, T.ocr + .5 + i * .12 + j * .08, .3); g.fillStyle = j === 2 ? ACC : MUTE; g.font = `${j === 2 ? 700 : 500} 14px GeistMono`; g.textAlign = 'center';
+        g.fillText(vals[j].toFixed(3).replace(/^0/, ''), cx + OC.off[j], OC.base - h - 10); g.globalAlpha = a; }
+    });
+    // the oracle: the error a perfectly turned page gets; LevelHead's bar reaches it
+    const ko = P(lt, T.oracle + i * .12, .5, E.inOut), oy = OC.base - vals[3] * OC.k;
+    if (ko > 0) { g.strokeStyle = GREEN; g.lineWidth = 2.5; g.setLineDash([7, 6]); g.beginPath(); g.moveTo(cx - 100, oy); g.lineTo(cx - 100 + 200 * ko, oy); g.stroke(); g.setLineDash([]); }
+    g.restore();
+    if (ko >= 1) ring(cx + OC.off[2], oy, 8 + P(lt, T.oracle + i * .12 + .5, .6) * 28, GREEN, (1 - P(lt, T.oracle + i * .12 + .5, .6)) * out, 2);
+  });
+}
+
+// =====================================================================
+// CLOSE - a tilted page snaps level, then upright: LevelHead
+// =====================================================================
+const close = el(front, 'div', 'layer');
+const icon = el(close, 'div', 'abs', { left: '900px', top: '240px', width: '120px', height: '156px', background: '#fff', borderRadius: '10px', boxShadow: `0 0 0 2.5px ${ACC}, 0 24px 48px -20px rgba(31,95,173,.55)` });
+[26, 48, 66, 84, 102, 120].forEach((y, k) => el(icon, 'div', 'abs', { left: '20px', top: y + 'px', width: k === 0 ? '50px' : k % 3 === 2 ? '60px' : '80px', height: '7px', borderRadius: '4px', background: k === 0 ? ACC : '#D3DBE5' }));
+const wordMask = el(close, 'div', 'abs', { left: '0', width: W + 'px', top: '452px', textAlign: 'center', overflow: 'hidden', paddingBottom: '14px' });
+const word = el(wordMask, 'div', '', { fontSize: '140px', fontWeight: 690, letterSpacing: '-0.055em', lineHeight: 1 }, 'Level<span style="color:#1F5FAD">Head</span>');
+const tag = el(close, 'div', 'abs', { left: '0', width: W + 'px', top: '628px', textAlign: 'center', fontSize: '42px', fontWeight: 520, color: MUTE, letterSpacing: '-0.02em' }, 'Deskew before you classify.');
+const links = el(close, 'div', 'abs', { left: '0', width: W + 'px', top: '728px', display: 'flex', justifyContent: 'center' });
+el(links, 'div', 'mono', { fontSize: '20px', color: INK, padding: '10px 20px', borderRadius: '12px', background: '#fff', border: `1px solid ${LINE}`, boxShadow: '0 10px 24px -16px rgba(20,32,46,.35)' }, 'github.com/beingamanforever/LevelHead');
+const facts = el(close, 'div', 'abs', { left: '0', width: W + 'px', top: '810px', display: 'flex', justifyContent: 'center', gap: '12px' });
+['training-free', 'any orientation model', 'runs in the browser', 'paper under review'].forEach(f => el(facts, 'span', 'mono', { fontSize: '15px', color: MUTE, padding: '7px 15px', borderRadius: '999px', background: '#fff', border: `1px solid ${LINE}` }, f));
+function drawClose(t) {
+  const lt = L('close', t);
+  if (lt < 0) return show(close, 0);
+  show(close, 1);
+  const tg = beat('close', 'tag', .85);
+  // the icon arrives turned 121 deg, levels (the tilt), then a quarter turn upright
+  const lev = swing(lt, .25), up = swing(lt, .7);
+  show(icon, P(lt, 0, .25), `rotate(${121 - 31 * lev - 90 * up}deg) scale(${.7 + .3 * pop(lt, 0)})`);
+  show(word, 1, `translateY(${(1 - E.quint(P(lt, .45, .7, linear))) * 110}%)`);
+  show(tag, P(lt, tg, .4), rise(lt, tg, 16));
+  show(links, P(lt, tg + .55, .4), rise(lt, tg + .55, 10)); show(facts, P(lt, tg + .85, .4), rise(lt, tg + .85, 10));
+  ring(960, 318, 90 + P(lt, .7, .9) * 240, ACC, (1 - P(lt, .7, .9)) * .5 * (lt > .7 ? 1 : 0), 2);
+}
+
+// a soft light sweeps the frame at each scene change
+const sweep = el(stage, 'div', 'abs', { left: '0', top: '0', width: '560px', height: H + 'px', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent)', pointerEvents: 'none' });
+function drawSweep(t) {
+  const sc = ORDER.slice(2).find(n => t >= SC[n].start && t < SC[n].start + .8);   // the first cut is the iris
+  if (sc) { const k = (t - SC[sc].start) / .8; show(sweep, Math.sin(Math.PI * k) * .9, `translateX(${lerp(-560, W, E.inOut(k))}px)`); } else show(sweep, 0);
+}
+
+// ---------- cue sheet: every sound effect, timed from the same beats as the pictures (sfx.py renders them) ----------
+const CUES = [];
+// mix levels: the cold open has no voice, so its effects carry it; under the narration they sit about 10 LU below the voice
+const SFX_LEVEL = scene => (scene === 'open' ? .5 : .33);
+const cue = (scene, lt, kind, o = {}) => CUES.push({ t: +(SC[scene].start + lt).toFixed(3), kind, ...o, gain: (o.gain ?? 1) * SFX_LEVEL(scene) });
+const PENTA = [1046.5, 1174.7, 1318.5, 1568.0, 1760.0, 2093.0, 2349.3];
+const SWISH = { dur: .45, lo: 500, peak: 2600, end: 700 }, ZIP = { dur: .3, lo: 900, peak: 3400, end: 1300 };
+{
+  const { q } = openTimes();
+  cue('open', 0, 'reveal', { gain: .5, dur: .42 });
+  cue('open', .3, 'whoosh', { gain: .55, dur: 1.1, lo: 120, peak: 1300, end: 260 });
+  // a whoosh for each page that rushes past the lens, at least 0.15 s apart, panned to its side
+  let last = -1;
+  tunnel.filter(p => p.z < ZT).map(p => { let lt = .2; while (lt < LOCK && p.z - camZ(lt) > NEAR + 260) lt += .002; return [lt, p]; })
+    .sort((a, b) => a[0] - b[0]).forEach(([lt, p], i) => { if (lt - last < .15 || lt > LOCK - .4) return; last = lt;
+      cue('open', lt - .2, 'whoosh', { gain: .22 + .1 * rnd(i), pan: clamp(p.x / 1400, -.8, .8), dur: .5, lo: 300, peak: 2200 + 600 * rnd(i + 9), end: 500, seed: i }); });
+  cue('open', LOCK - 1.35, 'riser', { gain: .4, dur: 1.35 });
+  cue('open', LOCK, 'boom', { gain: .85 });
+  cue('open', LOCK + .03, 'shimmer', { gain: .16, dur: 1.6 });
+  for (let n = 0, lt = LOCK + .35; lt < q - .85; n++, lt += SCAN_STEP) cue('open', lt, 'tick', { gain: .16, pan: Math.sin((TZ.turned + 90 * n) * Math.PI / 180) * .6 });
+  [0, 1, 2, 3].forEach(i => cue('open', wordAt(q, i) + .08, 'hit', i === 3 ? { gain: .55, low: 46, snap: .7 } : { gain: .34 }));
+  cue('open', q - .05, 'whoosh', { gain: .18, dur: .7, lo: 200, peak: 900, end: 260 });
+  cue('open', q + .8, 'pop', { gain: .12 });
+}
+// a soft swish under the light sweep at every scene change
+ORDER.slice(1).forEach(n => cue(n, 0, 'whoosh', { gain: .14, dur: .8, lo: 200, peak: 1100, end: 300 }));
+cue('fail', -.3, 'whoosh', { gain: .2, dur: 1.1, lo: 120, peak: 700, end: 200, seed: 31 }); cue('fail', -.2, 'shimmer', { gain: .12, dur: 1.2 });
+{
+  const T = failTimes(), up = T.upside + .1;
+  cue('fail', .45, 'pop', { gain: .1 }); cue('fail', .7, 'pop', { gain: .1, f0: 600, f1: 1000 });
+  [0, 1, 2, 3].forEach(i => cue('fail', T.trained + .25 + i * .12, 'pop', { gain: .06, f0: 700 + 90 * i, f1: 1100 + 120 * i }));
+  [T.guess - .75, T.deskew - .5, T.deskew - .05].forEach(lt => cue('fail', lt, 'whoosh', { gain: .1, ...ZIP }));
+  cue('fail', T.guess, 'error', { gain: .2 });
+  cue('fail', T.deskew + .3, 'whoosh', { gain: .12, ...SWISH });
+  cue('fail', up, 'error', { gain: .32 }); cue('fail', up, 'hit', { gain: .2, low: 50, snap: .2 });
+  for (let i = 0; i < TZ.cf.text.length; i += 3) cue('fail', up + .45 + i / 95, 'tick', { gain: .045, freq: 1800 + 900 * rnd(i) });
+}
+{
+  const split = beat('insight', 'split', 1.4), tilt = beat('insight', 'tilt', 3.0), rows = beat('insight', 'rows', 5.6), letters = beat('insight', 'letters', 7.6);
+  cue('insight', .15, 'whoosh', { gain: .12, ...SWISH });
+  cue('insight', split, 'whoosh', { gain: .1, ...SWISH });
+  cue('insight', split + .2, 'scan', { gain: .06, dur: .9 }); cue('insight', tilt + .1, 'scan', { gain: .06, dur: .6 });
+  cue('insight', rows - .25, 'whoosh', { gain: .09, ...SWISH }); cue('insight', letters - .25, 'whoosh', { gain: .09, ...SWISH });
+  [0, 1, 2, 3].forEach(k => cue('insight', letters + k * .42, 'tick', { gain: .12 }));
+}
+{
+  const T = levelTimes();
+  cue('level', T.streak - .1, 'shimmer', { gain: .13, dur: 1.0 });
+  cue('level', T.streak + .5, 'scan', { gain: .1, dur: T.angle - T.streak - .5 });
+  cue('level', T.angle, 'tick', { gain: .2 }); cue('level', T.angle, 'note', { gain: .14, freq: 1760 });
+  cue('level', T.turn, 'whoosh', { gain: .12, ...SWISH });
+}
+{
+  const tp = beat('hann', 'taper', 2.9), ret = beat('hann', 'returns', 4.4);
+  cue('hann', 1.3, 'error', { gain: .16 });
+  cue('hann', tp, 'shimmer', { gain: .13, dur: 1.1 });
+  cue('hann', ret, 'chime', { gain: .2 });
+}
+{
+  const four = beat('ask', 'four', 2.55);
+  cue('ask', .45, 'whoosh', { gain: .12, ...SWISH });
+  [0, 1, 2, 3].forEach(j => { cue('ask', .85 + j * .12, 'pop', { gain: .07, f0: 520 + 80 * j, f1: 900 + 120 * j });
+    cue('ask', four - .45 + j * .16, 'whoosh', { gain: .06, ...ZIP, seed: j }); cue('ask', four + .75 + j * .14, 'note', { gain: .07, freq: PENTA[j] }); });
+}
+{
+  const T = rollTimes();
+  [1, 2, 3].forEach(j => cue('roll', T.roll + j * .25, 'tick', { gain: .12, freq: 2200 + 300 * j }));
+  cue('roll', T.multiply, 'hit', { gain: .24 });
+  for (let i = 0; i < 9; i++) cue('roll', T.multiply + .6 + .9 * Math.pow(i / 9, 1.6), 'tick', { gain: .05, freq: 3000 });
+  cue('roll', T.outvoted, 'error', { gain: .16 });
+  cue('roll', T.outvoted + 1.0, 'whoosh', { gain: .13, ...SWISH });
+  cue('roll', T.outvoted + 1.6, 'chime', { gain: .24 });
+}
+{
+  const wr = beat('any', 'wraps', .9), vlm = beat('any', 'vlm', 3.2);
+  cue('any', .2, 'pop', { gain: .14, f0: 300, f1: 600 });
+  BACKBONES.forEach(([n, isVlm], i) => cue('any', isVlm ? vlm - 1.0 + (i - 4) * .1 : wr + i * .12, 'pop', { gain: .06, pan: isVlm ? .6 : -.6, f0: 500 + 40 * i, f1: 900 + 60 * i }));
+}
+{
+  const flat = beat('results', 'flat', 3.0), gains = beat('results', 'gains', 4.4);
+  cue('results', flat, 'scan', { gain: .07, dur: 1.3 });
+  cue('results', flat + 1.0, 'shimmer', { gain: .1, dur: 1.0 });
+  D.tilt.forEach((_, i) => cue('results', gains + i * .09, 'tick', { gain: .06, pan: .4 }));
+}
+{
+  const climb = beat('real', 'climb', 1.8);
+  LEVELS.forEach((_, i) => { cue('real', climb + .2 + i * .1, 'tick', { gain: .07, freq: 900 }); cue('real', climb + .9 + i * .12, 'note', { gain: .1, freq: PENTA[i] }); });
+  [0, 1].forEach(i => cue('real', climb + 1.4 + i * .4, 'pop', { gain: .1 }));
+}
+{
+  const T = scoreTimes();
+  cue('scores', T.angle - .4, 'whoosh', { gain: .12, ...SWISH, pan: -.4 });
+  ORIENT.forEach((_, i) => { const t1 = i >= 4 ? T.vlm + (i - 4) * .09 : T.cls + i * .09; cue('scores', t1 + .1, 'note', { gain: .06, freq: PENTA[i >= 4 ? i - 4 : i] }); });
+  cue('scores', T.ocr - .4, 'whoosh', { gain: .12, ...SWISH, pan: .4 });
+  OCR.forEach((_, i) => cue('scores', T.ocr + .15 + i * .12, 'pop', { gain: .07, pan: .4 }));
+  cue('scores', T.oracle + .4, 'chime', { gain: .22, pan: .3 });
+}
+{
+  cue('close', 0, 'whoosh', { gain: .16, dur: .6, lo: 300, peak: 1800, end: 400 });
+  cue('close', .25, 'tick', { gain: .14 });
+  cue('close', .7, 'boom', { gain: .5 }); cue('close', .72, 'shimmer', { gain: .18, dur: 1.8 });
+}
+window.CUES = CUES.sort((a, b) => a.t - b.t);
+window.MUSIC_AT = SC.open.start + LOCK;
+
+// ---------- frame ----------
+// z-order: background, scene layers (stages, headers), pages, cards in front, effects, sweep
+stage.appendChild(pageLayer); stage.appendChild(front); stage.appendChild(fx); stage.appendChild(sweep); stage.appendChild(letterbox); stage.appendChild(grainC);
+await document.fonts.load('650 78px Geist'); await document.fonts.load('500 15px GeistMono'); await document.fonts.ready;
+{ // where the equation's terms sit, for the leader lines (layout is static, so this is measured once)
+  const r = id => { const b = document.getElementById(id).getBoundingClientRect(); return [b.left + b.width / 2, b.top + b.height / 2]; };
+  EQ_K = r('eqk'); EQ_S = r('eqs');
+}
+window.seek = (t) => {
+  drawBackground(t);
+  g.clearRect(0, 0, W, H);
+  [teaser, method, out2, ...views].forEach(p => show(p.e, 0)); rowGlow.style.opacity = 0;
+  chCards.forEach(c => { c.style.transform = ''; c.style.width = '510px'; });
+  [drawOpen, drawFail, drawInsight, drawLevel, drawHann, drawAsk, drawRoll, drawAny, drawResults, drawReal, drawScores, drawClose, drawSweep, drawGrain].forEach(f => f(t));
+};
+await Promise.all([...document.images].map(i => i.decode().catch(() => {})));
+window.READY = true;
+seek(Number(new URLSearchParams(location.search).get('t') || 0));
+</script>
+</body>
+</html>

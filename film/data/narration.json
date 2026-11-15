@@ -1,0 +1,105 @@
+{
+  "open": {
+    "min": 8.0,
+    "say": "Every document pipeline starts with one question: which way is up?",
+    "beats": {
+      "question": "which way is up"
+    },
+    "lead": 2.95
+  },
+  "fail": {
+    "min": 10.0,
+    "say": "Pipelines guess the quarter turn first, then remove the tilt. But classifiers only ever saw level pages: on this tilted page, the guess is half a turn off, and the deskewer levels it, perfectly upside down.",
+    "beats": {
+      "trained": "But classifiers",
+      "guess": "the guess is",
+      "deskew": "and the deskewer",
+      "upside": "perfectly upside down"
+    }
+  },
+  "insight": {
+    "min": 8.0,
+    "say": "Here's the fix. Any angle is a quarter turn, plus a tilt under forty-five degrees. Rows of text reveal the tilt. Letter shapes reveal the turn.",
+    "beats": {
+      "split": "Any angle",
+      "tilt": "plus a tilt",
+      "rows": "Rows of text",
+      "letters": "Letter shapes"
+    }
+  },
+  "level": {
+    "min": 7.6,
+    "say": "So LevelHead deskews first. Text rows draw a streak in the Fourier spectrum; we read its angle, and turn the page level.",
+    "beats": {
+      "streak": "Text rows draw",
+      "angle": "we read its angle",
+      "turn": "and turn the page"
+    }
+  },
+  "hann": {
+    "min": 6.0,
+    "say": "On phone photos, the borders outshine the text. A Hann taper fades them, and the streak returns.",
+    "beats": {
+      "taper": "A Hann taper",
+      "returns": "and the streak"
+    }
+  },
+  "ask": {
+    "min": 6.0,
+    "say": "Then any frozen model looks at the level page four times, once per quarter turn.",
+    "beats": {
+      "four": "four times"
+    }
+  },
+  "roll": {
+    "min": 10.0,
+    "say": "Each answer is rolled back by its turn, and the four are multiplied. A model's favourite answer cancels out, and one confidently wrong view is simply outvoted.",
+    "beats": {
+      "roll": "rolled back",
+      "multiply": "and the four are multiplied",
+      "cancel": "A model's favourite",
+      "outvoted": "and one confidently wrong"
+    }
+  },
+  "any": {
+    "min": 6.0,
+    "say": "No training. It wraps any model, from a mobile CNN to a two-hundred-billion-parameter VLM.",
+    "beats": {
+      "wraps": "It wraps any model",
+      "vlm": "to a two-hundred"
+    }
+  },
+  "results": {
+    "min": 9.0,
+    "say": "Classify-first collapses at every diagonal. LevelHead stays flat, and on tilted pages every model gains, by up to sixty points.",
+    "beats": {
+      "flat": "LevelHead stays flat",
+      "gains": "and on tilted pages"
+    }
+  },
+  "real": {
+    "min": 6.5,
+    "say": "On real phone photos and scans, classifiers climb from two thirds to ninety percent.",
+    "beats": {
+      "climb": "classifiers climb"
+    }
+  },
+  "scores": {
+    "min": 9.5,
+    "say": "Two tests, two scores. Guessing the angle: vision-language models gain thirty-eight points on average, classifiers seven. Reading the text: OCR errors fall to the level of a perfectly upright page.",
+    "beats": {
+      "angle": "Guessing the angle",
+      "vlm": "vision-language models",
+      "cls": "classifiers seven",
+      "ocr": "Reading the text",
+      "oracle": "fall to the level"
+    }
+  },
+  "close": {
+    "min": 4.6,
+    "say": "LevelHead. Deskew before you classify.",
+    "beats": {
+      "tag": "Deskew before"
+    }
+  }
+}

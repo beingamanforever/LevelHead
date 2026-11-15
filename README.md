@@ -89,6 +89,7 @@ Command line: `python examples/demo.py scan.jpg --out upright.jpg`.
 | `experiments/` | benchmark builders (ODB-4/any, Real5-Rot, DISE-any), labels, VLM runners |
 | `results/` | per-backbone accuracies on the public benchmarks |
 | `docs/` | the interactive page and the film (`levelhead-film.mp4`) |
+| `film/` | the film's source: a frame-exact HTML renderer, narration, synthesised sound effects and the mix |
 
 Builds on [jdeskew](https://github.com/phamquiluan/jdeskew) and evaluates on [OmniDocBench](https://github.com/opendatalab/OmniDocBench), [ORB](https://arxiv.org/abs/2511.04161), Real5-OmniDocBench and [DISE 2021](https://huggingface.co/datasets/phamquiluan/DISE-2021).
 The paper is under review; a citation will follow. Licensed under [Apache 2.0](LICENSE).

@@ -1,0 +1,85 @@
+{
+ "open": 8.0,
+ "fail": 12.61,
+ "insight": 9.64,
+ "level": 7.83,
+ "hann": 6.0,
+ "ask": 6.0,
+ "roll": 10.0,
+ "any": 6.0,
+ "results": 9.0,
+ "real": 6.5,
+ "scores": 12.89,
+ "close": 4.6,
+ "beats": {
+  "open": {
+   "question": 5.823
+  },
+  "fail": {
+   "trained": 3.719,
+   "guess": 7.744,
+   "deskew": 9.275,
+   "upside": 10.703
+  },
+  "insight": {
+   "split": 1.422,
+   "tilt": 3.045,
+   "rows": 5.564,
+   "letters": 7.564
+  },
+  "level": {
+   "streak": 2.091,
+   "angle": 4.888,
+   "turn": 6.064
+  },
+  "hann": {
+   "taper": 2.885,
+   "returns": 4.356
+  },
+  "ask": {
+   "four": 2.552
+  },
+  "roll": {
+   "roll": 1.018,
+   "multiply": 2.442,
+   "cancel": 4.41,
+   "outvoted": 6.663
+  },
+  "any": {
+   "wraps": 0.885,
+   "vlm": 3.197
+  },
+  "results": {
+   "flat": 2.997,
+   "gains": 4.416
+  },
+  "real": {
+   "climb": 2.107
+  },
+  "scores": {
+   "angle": 1.578,
+   "vlm": 3.119,
+   "cls": 6.17,
+   "ocr": 7.846,
+   "oracle": 9.694
+  },
+  "close": {
+   "tag": 0.854
+  }
+ },
+ "vo_at": {
+  "open": 2.95,
+  "fail": 8.12,
+  "insight": 20.73,
+  "level": 30.37,
+  "hann": 38.2,
+  "ask": 44.2,
+  "roll": 50.2,
+  "any": 60.2,
+  "results": 66.2,
+  "real": 75.2,
+  "scores": 81.7,
+  "close": 94.59
+ },
+ "voice": "elevenlabs/eleven-multilingual-v2:george"
+}
